@@ -8,7 +8,7 @@ If you have a good example that you'd like added here, please [open a pull reque
 
 A config that handles JS tasks and builds the iOS and Android apps.
 
-![](./img/simple.png)
+![](./img/simple-build.png)
 
 ## Simple (E2E Testing)
 
