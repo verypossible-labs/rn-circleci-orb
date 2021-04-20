@@ -1,0 +1,4 @@
+version: 2.1
+description: |
+  Orb for building and testing React Native projects. View
+  this orb's source: https://github.com/verypossible-labs/rn-circleci-orb.git

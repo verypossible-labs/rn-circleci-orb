@@ -6,7 +6,7 @@ Following these guidelines helps to communicate that you respect the time of the
 
 ## Using the issue tracker
 
-The [issue tracker](https://github.com/[VERY/LABS]/[REPO-NAME]/issues) is the preferred channel for bug reports and feature requests. If you're submitting a pull request, it's helpful to either make sure an issue exists in the tracker, or create one for your change.
+The [issue tracker](https://github.com/verypossible-labs/rn-circleci-orb/issues) is the preferred channel for bug reports and feature requests. If you're submitting a pull request, it's helpful to either make sure an issue exists in the tracker, or create one for your change.
 
 ## Bug reports
 
@@ -24,7 +24,7 @@ Please try to be as detailed as possible in your bug report - the more details, 
 
 Feature requests are welcome, especially if they are related to open issues.
 
-**Before opening a pull request**, please take a moment to find out whether your idea fits within the scope and aims of this project. Please [open a new feature request](https://github.com[VERY/LABS]/[REPO-NAME]/issues/new) and fill in the template that appears. This will help developers understand your intent and may prevent you from spending a lot of time and effort working on something that may not get merged.
+**Before opening a pull request**, please take a moment to find out whether your idea fits within the scope and aims of this project. Please [open a new feature request](https://github.comverypossible-labs/rn-circleci-orb/issues/new) and fill in the template that appears. This will help developers understand your intent and may prevent you from spending a lot of time and effort working on something that may not get merged.
 
 Guidelines for feature requests:
 
@@ -36,6 +36,6 @@ Guidelines for feature requests:
 
 ## Collaborating guidelines
 
-**IMPORTANT:** by submitting a pull request, you agree to allow the project owners to license your work under the terms of the [LICENSE]().
+**IMPORTANT:** by submitting a pull request, you agree to allow the project owners to license your work under the terms of the [LICENSE](./LICENSE).
 
-Please review the [code of conduct]().
+Please review the [code of conduct](./CODE_OF_CONDUCT.md).

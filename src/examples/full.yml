@@ -1,0 +1,161 @@
+description: A full setup with TypeScript lint/test jobs, e2e testing, platform builds, and deployment.
+
+usage:
+  version: 2.1 # orbs require >= 2.1
+
+orbs:
+  vprn: verypossible/rn@1.0.0 # make sure you have the latest version of the orb
+
+references:
+  # helper method to attach the workspace
+  # https://circleci.com/docs/2.0/configuration-reference/#attach_workspace
+  attach_workspace: &attach_workspace
+    attach_workspace:
+      at: .
+
+# Custom jobs not part of the orb
+jobs:
+  checkout_code:
+    executor:
+      name: vprn/linux_js
+      node_version: "lts" # can be major, minor, patch, or lts
+    steps:
+      - checkout
+      - run:
+          # see README for more explanation
+          name: Decrypt secret keys
+          command: |
+            chmod +x ./scripts/decrypt_keys.sh
+            ./scripts/decrypt_keys.sh
+      - persist_to_workspace:
+          root: .
+          paths: .
+  analyze_js:
+    executor: rn/linux_js
+    steps:
+      - *attach_workspace
+      - yarn_install
+      - run:
+          name: Run ESLint
+          command: yarn lint # assumes a 'lint' script exists in package.json
+      - run:
+          name: Run Jest
+          command: yarn test # assumes a 'test' script exists in package.json
+
+# NOTE: this workflow is assuming you're using a gitflow-like pattern
+# where feature branches are merged into a branch 'dev', which then gets merged to 'stage' for beta deployments and 'main' for production releases.
+workflows:
+  build:
+    jobs:
+      - checkout_code # our job defined above
+
+      - analyze_js:
+          requires:
+            - checkout_code
+
+      # Note: we split the test and build jobs because we can build the Android app on a Linux machine and preserve macOS minutes
+      - vprn/android_build:
+          name: build_android_release
+          build_type: release
+          bundle_type: aab
+          requires:
+            - analyze_js
+          # assuming you're following a gitflow-like pattern -- since this job will be run on all feature/hotfix branches, it's redundant to run on branches we push against
+          # fastlane builds the app to deploy it as well
+          filters:
+            branches:
+              ignore:
+                - main
+                - stage
+                - dev
+
+      - vprn/android_test:
+          detox_configuration: "android.emu.release"
+          requires:
+            - build_android_release
+          # assuming you're following a gitflow-like pattern -- since this job will be run on all feature/hotfix branches, it's redundant to run on branches we push against
+          # fastlane builds the app to deploy it as well
+          filters:
+            branches:
+              ignore:
+                - main
+                - stage
+                - dev
+
+      - vprn/ios_build:
+          name: build_ios_release
+          build_configuration: Release
+          project_path: ios/MyApp.xcworkspace
+          project_type: workspace
+          scheme: MyApp
+          requires:
+            - analyze_js
+          # assuming you're following a gitflow-like pattern -- since this job will be run on all feature/hotfix branches, it's redundant to run on branches we push against
+          # fastlane builds the app to deploy it as well
+          filters:
+            branches:
+              ignore:
+                - main
+                - stage
+                - dev
+
+      - vprn/ios_build_and_test:
+          build_configuration: Release
+          project_path: ios/MyApp.xcworkspace
+          project_type: workspace
+          scheme: MyApp
+          detox_configuration: "ios.sim.release"
+          requires:
+            - analyze_js
+          # assuming you're following a gitflow-like pattern -- since this job will be run on all feature/hotfix branches, it's redundant to run on branches we push against
+          # fastlane builds the app to deploy it as well
+          filters:
+            branches:
+              ignore:
+                - main
+                - stage
+                - dev
+
+      - vprn/ios_deploy:
+          fastlane_deploy_lane: beta
+          fastlane_deploy_description: "Deploy beta iOS app to TestFlight."
+          requires:
+            - analyze_js
+          # deploy a beta version of the app when we're on the 'stage' branch
+          filters:
+            branches:
+              only:
+                - stage
+
+      - vprn/ios_deploy:
+          fastlane_deploy_lane: release
+          fastlane_deploy_description: "Deploy the iOS app to the App Store."
+          requires:
+            - analyze_js
+          # deploy the production version of the app on the main branch
+          filters:
+            branches:
+              only:
+                - main
+
+      - vprn/android_deploy:
+          fastlane_deploy_lane: beta
+          fastlane_deploy_description: "Deploy beta Android app to Google Play Store (closed track)"
+          requires:
+            - analyze_js
+          # deploy a beta version of the app when we're on the 'stage' branch
+          filters:
+            branches:
+              only:
+                - stage
+
+      - vprn/android_deploy:
+          fastlane_deploy_lane: release
+          fastlane_deploy_description: "Deploy Android app to the Google Play Store."
+          requires:
+            - analyze_js
+          # deploy the production version of the app on the main branch
+          filters:
+            branches:
+              only:
+                - main

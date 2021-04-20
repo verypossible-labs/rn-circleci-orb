@@ -1,0 +1,72 @@
+version: 2.1
+
+orbs:
+  rn: verypossible-labs/react-native@1.0.0
+
+references:
+  # helper method to attach the workspace
+  # https://circleci.com/docs/2.0/configuration-reference#attachworkspace
+  attach_workspace: &attach_workspace
+    attach_workspace:
+      at: .
+  # helper param to persist to the workspace root
+  # https://circleci.com/docs/2.0/configuration-reference/#persisttoworkspace
+  persist_to_workspace: &persist_workspace
+    persist_to_workspace:
+      root: .
+      paths: .
+
+jobs:
+  checkout_code:
+    executor:
+      name: rn/linux_js
+      node_version: "lts"
+    steps:
+      - checkout
+      - *persist_workspace
+
+  # all js-related tasks would go in this job
+  # e.g. linting and testing
+  # note that this is a custom job and is not part of the orb
+  analyze_js:
+    executor: rn/linux_js
+    steps:
+      - *attach_workspace
+      - rn/yarn_install
+      - run:
+          name: Run eslint
+          command: yarn lint # assumes you have a 'lint' command configuration in the scripts key of your package.json
+      - run:
+          name: Run unit tests
+          command: yarn test # assumes you have a 'test' command configuration in the scripts key of your package.json
+
+workflows:
+  build:
+    jobs:
+      - checkout_code
+
+      - analyze_js:
+          requires:
+            - checkout_code
+
+      # build an iOS release build
+      # see src/jobs/ios_build.yml for all parameters
+      - rn/ios_build_and_test:
+          name: build_ios_release # a name is required to reference this job in other parts of the config
+          project_type: workspace
+          project_path: ios/MyApp.xcworkspace
+          build_configuration: Release
+          device: iPhone 11 Pro
+          scheme: MyApp
+          node_version: "lts"
+          requires:
+            - analyze_js
+
+      # build an Android release build
+      # see src/jobs/android_build for all parameters
+      - rn/android_build:
+          name: build_android_release # a name is required to reference this job in other parts of the config
+          build_type: release
+          bundle_type: aab
+          requires:
+            - analyze_js

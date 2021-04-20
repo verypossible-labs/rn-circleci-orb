@@ -1,0 +1,25 @@
+description: Bundles the Android app as the given bundle type at the given path. This is meant to be run inside the android_build command, but can also be run separately. This should be run only after installing dependencies.
+
+parameters:
+  project_path:
+    description: The path to the root of the Android project you want to build, relative to the root of the repository.
+    type: string
+    default: "./android"
+  build_type:
+    description: The build type to build. This is normally either "debug" or "release" but you may have custom build types configured for your app.
+    type: string
+    default: "release"
+  bundle_type:
+    description: The type of app to bundle. 'bundle' corresponds to 'aab' where 'assemble' corresponds to apk.
+    type: enum
+    enum: ["bundle", "assemble"]
+    default: "bundle"
+
+steps:
+  - run:
+      name: Bundle Android App
+      command: |
+        cd <<parameters.project_path>>
+        chmod +x gradlew
+        ./gradlew clean
+        ./gradlew --build-cache --continue app:<<parameters.bundle_type>><<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type> --stacktrace

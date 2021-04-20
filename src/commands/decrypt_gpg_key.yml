@@ -1,0 +1,22 @@
+description: Decrypt a secret key using GPG. This command can be used before build/deploy commands where you need a secret key for either task that can't be stored as an environment variable (e.g. a deployment pem key, etc.)
+
+parameters:
+  key_name:
+    description: Name of the secret key environment variable. Should be found in your project's settings > environment variables.
+    type: string
+    default: ""
+  input_key_path:
+    description: The path of the key to decrypt relative to project root.
+    type: string
+    default: ""
+  output_key_path:
+    description: The path to place the decrypted key relative to project  root.
+    type: string
+    default: ""
+
+steps:
+  - run:
+      name: Decrypt secret key
+      command: |
+        gpg --quiet --batch --yes --passphrase="<<parameters.key_name>>" \
+          --output <<parameters.output_key_path>> <<parameters.input_key_path>>

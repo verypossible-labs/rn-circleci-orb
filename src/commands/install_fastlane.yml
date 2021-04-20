@@ -1,0 +1,20 @@
+description: Installs and caches ruby gems (fastlane) and any fastlane plugins.
+
+steps:
+  - restore_cache:
+      keys:
+        - bundler-v1-{{ checksum "Gemfile.lock" }}
+        - bundler-v1-
+
+  - run:
+      name: Install gems from Gemfile.lock
+      command: bundle install --clean --path vendor/bundle
+
+  - run:
+      name: Install Fastlane plugins
+      command: fastlane install_plugins
+
+  - save_cache:
+      key: bundler-v1-{{ checksum "Gemfile.lock" }}
+      paths:
+        - vendor/bundle

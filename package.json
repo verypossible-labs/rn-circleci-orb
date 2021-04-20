@@ -1,0 +1,43 @@
+{
+  "name": "@verypossible/rn-circleci-orb",
+  "version": "1.0.0",
+  "description": "A CircleCI Orb used for building and deploying React Native apps.",
+  "author": "Sara Pope <sara@verypossible.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/verypossible-labs/rn-circleci-orb.git"
+  },
+  "scripts": {
+    "pack": "./scripts/pack.sh",
+    "semantic-release": "semantic-release",
+    "commit": "git-cz"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^12.0.1",
+    "@commitlint/config-conventional": "^12.0.1",
+    "@semantic-release/changelog": "^5.0.1",
+    "@semantic-release/git": "^9.0.0",
+    "commitizen": "^4.2.3",
+    "cz-conventional-changelog": "^3.3.0",
+    "husky": "^6.0.0",
+    "semantic-release": "^17.4.2",
+    "semantic-release-circleci-orb": "^1.1.1"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "yarn lint",
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  }
+}

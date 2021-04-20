@@ -1,0 +1,13 @@
+description: Starts an iOS simulator with the given name.
+
+parameters:
+  device:
+    description: The type of device you want to start.
+    type: string
+    default: "iPhone 12"
+
+steps:
+  - run:
+      name: Start iOS simulator (background)
+      background: true
+      command: xcrun simctl boot "<<parameters.device>>" || true

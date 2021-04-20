@@ -1,0 +1,71 @@
+description: Installs and starts an Android emulator with the given version and name.
+
+parameters:
+  device_name:
+    description: The name of the AVD. You use this name to tell which device to run tests on.
+    type: string
+    default: "TestingAVD"
+  platform_version:
+    description: The version of android to run on the emulator. Usually in the form of "android-30".
+    type: string
+    default: "android-30"
+  build_tools_version:
+    description: The version of the Android build tools to install.
+    type: string
+    default: "29.0.3"
+  logcat_grep:
+    description: ADB logs will be shown in the "Start Android Emulator" commands, but we filter it using grep to avoid noise. You can specify additional strings to grep for. Make sure you escape special characters.
+    type: string
+    default: "com.verypossible"
+
+steps:
+  - run:
+      name: Install Android Emulator
+      shell: /bin/bash -e
+      command: |
+        yes | sdkmanager "platform-tools" "tools" >/dev/null
+        yes | sdkmanager "platforms;<<parameters.platform_version>>" "system-images;<<parameters.platform_version>>;default;x86_64" >/dev/null
+        yes | sdkmanager "emulator" --channel=3 >/dev/null
+        yes | sdkmanager "build-tools;<<parameters.build_tools_version>>" >/dev/null
+        yes | sdkmanager --licenses >/dev/null
+        yes | sdkmanager --list
+
+  # to force ssh key generation for emulators
+  - run:
+      name: ADB Start Stop
+      command: |
+        adb start-server
+        adb devices
+        adb kill-server
+        ls -la ~/.android
+
+  - run:
+      name: Create Android Emulator
+      command:
+        avdmanager create avd --force --name <<parameters.device_name>> --package
+        "system-images;<<parameters.platform_version>>;default;x86_64" --tag
+        default --device pixel
+
+  - run:
+      name: Start Android Emulator (background)
+      command: |
+        $ANDROID_HOME/emulator/emulator @<<parameters.device_name>> -version
+        $ANDROID_HOME/emulator/emulator @<<parameters.device_name>> -cores 1 -gpu auto -accel on -memory 1024 -no-audio -no-snapshot -no-boot-anim -no-window -logcat *:W | grep -i 'ReactNative\|<<parameters.logcat_grep>>'
+      background: true
+
+  - run:
+      name: Wait for AVD to be ready
+      no_output_timeout: "5m"
+      command: |
+        export BOOT=""
+        echo "Waiting for AVD to finish booting"
+        export PATH=$(dirname $(dirname $(command -v android)))/platform-tools:$PATH
+        until [[ "$BOOT" =~ "1" ]]; do
+          sleep 5
+          export BOOT=$(adb -e shell getprop sys.boot_completed 2>&1)
+        done
+        sleep 15
+        adb shell settings put global window_animation_scale 0
+        adb shell settings put global transition_animation_scale 0
+        adb shell settings put global animator_duration_scale 0
+        echo "Android Virtual Device is now ready."

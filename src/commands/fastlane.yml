@@ -1,0 +1,28 @@
+description: Runs a Fastlane lane for a given platform.
+
+parameters:
+  platform:
+    description: The platform to deploy, either "android" or "ios".
+    type: enum
+    enum: ["android", "ios"]
+    default: "ios"
+  lane:
+    description: The fastlane lane to run for deployment.
+    type: string
+    default: "beta"
+  description:
+    description: Descriptor of the Fastlane lane running
+    type: string
+    default: ""
+
+steps:
+  - yarn_install
+  - when:
+      condition:
+        equal: [ios, <<parameters.platform>>]
+      steps:
+        - install_pods
+  - install_fastlane
+  - run:
+      name: <<parameters.description>>
+      command: bundle exec fastlane <<parameters.platform>> <<parameters.lane>>
