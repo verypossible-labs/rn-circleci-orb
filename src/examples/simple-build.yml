@@ -20,7 +20,6 @@ jobs:
   checkout_code:
     executor:
       name: rn/linux_js
-      node_version: "lts"
     steps:
       - checkout
       - *persist_workspace
@@ -51,9 +50,6 @@ workflows:
 
       # build an iOS release build
       # see src/jobs/ios_build.yml for all parameters
-      #
-      # note: this job builds and runs e2e tests for iOS. doing this in a single job avoids duplication and spares macOS minutes
-      # if you don't want e2e testing, you can use the rn/ios_build job: src/jobs/ios_build.yml which has the same parameters seen here (see examples/simple.yml)
       - rn/ios_build_and_test:
           name: build_ios_release # a name is required to reference this job in other parts of the config
           project_type: workspace

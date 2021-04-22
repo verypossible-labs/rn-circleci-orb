@@ -20,7 +20,6 @@ jobs:
   checkout_code:
     executor:
       name: rn/linux_js
-      node_version: "lts"
     steps:
       - checkout
       - *persist_workspace

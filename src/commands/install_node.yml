@@ -19,7 +19,7 @@ steps:
   - when:
       condition:
         not:
-          - equal: [lts, <<parameters.node_version>>]
+          equal: [lts, <<parameters.node_version>>]
       steps:
         - run:
             name: Install node@<<parameters.node_version>>

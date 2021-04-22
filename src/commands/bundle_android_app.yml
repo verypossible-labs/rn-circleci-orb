@@ -17,9 +17,24 @@ parameters:
 
 steps:
   - run:
-      name: Bundle Android App
-      command: |
-        cd <<parameters.project_path>>
-        chmod +x gradlew
-        ./gradlew clean
-        ./gradlew --build-cache --continue app:<<parameters.bundle_type>><<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type> --stacktrace
+    name: Clean Gradle
+    command: |
+      cd <<parameters.project_path>>
+      chmod +x gradlew
+      ./gradlew clean
+  - when:
+      condition:
+        equal: [aab, <<parameters.bundle_type>>]
+      steps:
+        - run:
+            name: Bundle app
+            command: |
+              ./gradlew --build-cache --continue app:bundle<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
+  - when:
+      condition:
+        equal: [apk, <<parameters.bundle_type>>]
+      steps:
+        - run:
+            name: Bundle app
+            command: |
+              ./gradlew --build-cache --continue app:assemble<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace

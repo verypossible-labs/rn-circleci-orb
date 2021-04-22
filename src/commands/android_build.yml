@@ -67,10 +67,11 @@ steps:
       command: npx react-native start
 
   # we bundle the JS and Assets separately to avoid memory heap issues when building the app
-  - bundle_rn:
-      platform: android
-      bundle_output: android/app/build/generated/assets/react/release/index.android.bundle
-      assets_dest: android/app/src/main/res
+  - run:
+      name: Bundle JS
+      command: |
+        mkdir -p android/app/build/generated/assets/react/release
+        npx react-native bundle --platform android --dev false  --entry-file index.js --bundle-output android/app/build/generated/assets/react/release/index.android.bundle --assets-dest android/app/src/main/res
 
   # see: https://stackoverflow.com/questions/52652381/error-execution-failed-for-task-appmergereleaseresources-building-apk
   - run:

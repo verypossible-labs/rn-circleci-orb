@@ -17,12 +17,31 @@ parameters:
 
 steps:
   - yarn_install
+
   - when:
       condition:
         equal: [ios, <<parameters.platform>>]
       steps:
         - install_pods
-  - install_fastlane
+
+  - restore_cache:
+      keys:
+        - bundler-v1-{{ checksum "Gemfile.lock" }}
+        - bundler-v1-
+
+  - run:
+      name: Install gems from Gemfile.lock
+      command: bundle install --clean --path vendor/bundle
+
+  - run:
+      name: Install Fastlane plugins
+      command: fastlane install_plugins
+
+  - save_cache:
+      key: bundler-v1-{{ checksum "Gemfile.lock" }}
+      paths:
+        - vendor/bundle
+
   - run:
       name: <<parameters.description>>
       command: bundle exec fastlane <<parameters.platform>> <<parameters.lane>>

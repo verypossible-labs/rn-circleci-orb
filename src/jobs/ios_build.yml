@@ -71,7 +71,7 @@ steps:
 
   - yarn_install
 
-  - install_cocoapods
+  - install_pods
 
   - when:
       condition: <<parameters.on_after_initialize>>
