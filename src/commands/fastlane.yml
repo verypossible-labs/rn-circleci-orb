@@ -25,20 +25,18 @@ steps:
         - install_pods
 
   - restore_cache:
-      keys:
-        - bundler-v1-{{ checksum "Gemfile.lock" }}
-        - bundler-v1-
+      key: 1-gems-{{ checksum "Gemfile.lock" }}
 
   - run:
       name: Install gems from Gemfile.lock
-      command: bundle install --clean --path vendor/bundle
+      command: bundle check || bundle install --path vendor/bundle
 
   - run:
       name: Install Fastlane plugins
       command: fastlane install_plugins
 
   - save_cache:
-      key: bundler-v1-{{ checksum "Gemfile.lock" }}
+      key: 1-gems-{{ checksum "Gemfile.lock" }}
       paths:
         - vendor/bundle
 
