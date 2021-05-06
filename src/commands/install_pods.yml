@@ -8,15 +8,13 @@ parameters:
 
 steps:
   - restore_cache:
-      keys:
-        - cache-pods-{{ checksum "<<parameters.pod_install_directory>>/Podfile.lock" }}-{{ .Environment.CACHE_VERSION }}
-        - cache-pods-
+      key: cocoapods-{{ arch }}-{{ .Branch }}-{{ checksum "ios/Podfile.lock" }}
   - run:
       name: Install CocoaPods
       command: |
-        cd <<parameters.pod_install_directory>> && pod install && cd -
+        cd <<parameters.pod_install_directory>> && pod install --repo-update && cd -
 
   - save_cache:
+      key: cocoapods-{{ arch }}-{{ .Branch }}-{{ checksum "ios/Podfile.lock" }}
       paths:
         - <<parameters.pod_install_directory>>/Pods
-      key: cache-pods-{{ checksum "<<parameters.pod_install_directory>>/Podfile.lock" }}-{{ .Environment.CACHE_VERSION }}
