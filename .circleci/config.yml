@@ -76,10 +76,10 @@ workflows:
           requires: [pack]
           filters:
             branches:
-              ignore: master
+              ignore: main
 
       - publish:
           requires: [pack]
           filters:
             branches:
-              only: master
+              only: main
