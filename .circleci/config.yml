@@ -26,7 +26,7 @@ jobs:
 
   publish:
     docker:
-      - image: cimg/node:15
+      - image: cimg/node:lts
     environment:
       - PATH: "~/bin:/opt/yarn/yarn-v1.5.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     steps:
