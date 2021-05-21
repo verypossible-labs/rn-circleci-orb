@@ -106,7 +106,7 @@ steps:
   - when:
       condition: <<parameters.pod_install_directory>>
       steps:
-        - pod_install:
+        - install_pods:
             pod_install_directory: <<parameters.pod_install_directory>>
 
   - ios_build:
