@@ -59,7 +59,7 @@ task downloadDependencies() {
 
 ## Usage
 
-See the [examples](./src/examples).
+See the [examples](./examples).
 
 ## Roadmap
 

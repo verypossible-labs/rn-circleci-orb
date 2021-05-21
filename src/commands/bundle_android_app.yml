@@ -17,11 +17,11 @@ parameters:
 
 steps:
   - run:
-    name: Clean Gradle
-    command: |
-      cd <<parameters.project_path>>
-      chmod +x gradlew
-      ./gradlew clean
+      name: Clean Gradle
+      command: |
+        cd <<parameters.project_path>>
+        chmod +x gradlew
+        ./gradlew clean
   - when:
       condition:
         equal: [aab, <<parameters.bundle_type>>]
