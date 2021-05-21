@@ -35,7 +35,7 @@ version: 2.1
 
 ```yml
 orbs:
-  rn: verypossible/react-native@1.0.0
+  rn: verypossible-labs/react-native@1.0.0
 ```
 
 You can now use elements from the orb in your workspace by prefixing them with `rn`. You can change `rn` to anything you'd like.

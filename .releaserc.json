@@ -14,7 +14,7 @@
       "semantic-release-circleci-orb",
       {
         "commandName": "/home/circleci/circleci",
-        "orbName": "verypossible/react-native",
+        "orbName": "verypossible-labs/react-native",
         "orbPath": "packed-orb.yml"
       }
     ],
