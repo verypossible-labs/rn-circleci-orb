@@ -25,7 +25,6 @@ about: Create a report for unexpected behavior
 
 ### Environment
 
-<!-- Please fill out at least 'Version' and 'Operating System'. -->
+<!-- Please fill out at least 'Version' and any other applicable CircleCI related versions. -->
 
-- Version:
-- Operating System:
+- Orb Version:

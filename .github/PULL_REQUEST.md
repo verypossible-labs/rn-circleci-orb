@@ -1,6 +1,6 @@
 Thanks for submitting a pull request! Please provide enough information so that others can review your pull request.
 
-For more information, see the [CONTRIBUTING] guide.
+For more information, see the [CONTRIBUTING](../CONTRIBUTING.md) guide.
 
 **Please check if the PR fulfills these requirements**
 
@@ -9,9 +9,9 @@ For more information, see the [CONTRIBUTING] guide.
 
 ### Proposed changes
 
-- 
-- 
-- 
+-
+-
+-
 
 **Does this PR introduce a breaking change?**
 
