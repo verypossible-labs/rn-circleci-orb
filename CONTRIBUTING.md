@@ -1,6 +1,6 @@
-# Contributing to [PROJECT]
+# Contributing to rn-circleci-orb
 
-Hi there! This guide will help you get started contributing to [project].
+Hi there! This guide will help you get started contributing to rn-circleci-orb.
 
 Following these guidelines helps to communicate that you respect the time of the developers managing and developing this open source project. In return, they should reciprocate that respect in addressing your issue or assessing patches and features.
 
