@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.0...v1.0.1) (2021-05-25)
+
+
+### Bug Fixes
+
+* **android_build:** update store_artifacts and persist_to_workspace paths based on bundle type ([ff2fdf0](https://github.com/verypossible-labs/rn-circleci-orb/commit/ff2fdf0594239aa664a2a822a233944177cc0349))
+
 # 1.0.0 (2021-05-21)
 
 
