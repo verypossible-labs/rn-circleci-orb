@@ -32,7 +32,7 @@ parameters:
   build_type:
     description: The build type to build. This is normally either "debug" or "release" but you may have custom build types configured for your app.
     type: string
-    default: "debug"
+    default: "release"
   bundle_type:
     description: The type of app to bundle, either 'aab' (Android App Bundles) or 'apk'. Google's recommendation is aab, which is the default.
     type: enum
@@ -72,13 +72,35 @@ steps:
   - when:
       condition: <<parameters.persist_to_workspace>>
       steps:
-        - persist_to_workspace:
-            root: .
-            paths:
-              - <<parameters.project_path>>/app/build/outputs/<<parameters.bundle_type>>
+        - when:
+            condition:
+              equal: [aab, <<parameters.bundle_type>>]
+            steps:
+              - persist_to_workspace:
+                  root: .
+                  paths:
+                    - <<parameters.project_path>>/app/build/outputs/bundle
+        - when:
+            condition:
+              equal: [apk, <<parameters.bundle_type>>]
+            steps:
+              - persist_to_workspace:
+                  root: .
+                  paths:
+                    - <<parameters.project_path>>/app/build/outputs/apk
 
   - when:
       condition: <<parameters.store_artifacts>>
       steps:
-        - store_artifacts:
-            path: <<parameters.project_path>>/app/build/outputs/<<parameters.bundle_type>>
+        - when:
+            condition:
+              equal: [aab, <<parameters.bundle_type>>]
+            steps:
+              - store_artifacts:
+                  path: <<parameters.project_path>>/app/build/outputs/bundle
+        - when:
+            condition:
+              equal: [apk, <<parameters.bundle_type>>]
+            steps:
+              - store_artifacts:
+                  path: <<parameters.project_path>>/app/build/outputs/apk
