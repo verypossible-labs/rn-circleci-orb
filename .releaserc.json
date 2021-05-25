@@ -30,20 +30,6 @@
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci] \n\n${nextRelease.notes}"
       }
-    ],
-    [
-      "semantic-release-slack-bot",
-      {
-        "notifyOnSuccess": false,
-        "notifyOnFail": false,
-        "branchesConfig": [
-          {
-            "pattern": "main",
-            "notifyOnFail": true,
-            "notifyOnSuccess": true
-          }
-        ]
-      }
     ]
   ]
 }
