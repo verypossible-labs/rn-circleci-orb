@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.3...v1.0.4) (2021-05-26)
+
+
+### Bug Fixes
+
+* **android:** add project path and change gradlew permissions for build ([e0938b1](https://github.com/verypossible-labs/rn-circleci-orb/commit/e0938b11747e2bdd293d31cd835ff3fde3905de7))
+
 ## [1.0.3](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.2...v1.0.3) (2021-05-26)
 
 

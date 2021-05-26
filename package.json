@@ -1,6 +1,6 @@
 {
   "name": "@verypossible-labs/rn-circleci-orb",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "A CircleCI Orb used for building and deploying React Native apps.",
   "author": "Sara Pope <sara@verypossible.com>",
