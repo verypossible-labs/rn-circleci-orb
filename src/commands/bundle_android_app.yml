@@ -30,6 +30,8 @@ steps:
         - run:
             name: Bundle app
             command: |
+              cd <<parameters.project_path>>
+              chmod +x gradlew
               ./gradlew --build-cache --continue app:bundle<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
 
   - when:
@@ -39,4 +41,6 @@ steps:
         - run:
             name: Bundle app
             command: |
+              cd <<parameters.project_path>>
+              chmod +x gradlew
               ./gradlew --build-cache --continue app:assemble<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
