@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.2...v1.0.3) (2021-05-26)
+
+
+### Bug Fixes
+
+* **android:** change bundle_type enum in bundle_android_app to match other commands ([28b5497](https://github.com/verypossible-labs/rn-circleci-orb/commit/28b54979e5c83b9b43ef8a2cbe9ca62b5254b32c))
+
 ## [1.0.2](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.1...v1.0.2) (2021-05-26)
 
 
