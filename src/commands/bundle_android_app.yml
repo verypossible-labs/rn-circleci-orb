@@ -10,10 +10,10 @@ parameters:
     type: string
     default: "release"
   bundle_type:
-    description: The type of app to bundle. 'bundle' corresponds to 'aab' where 'assemble' corresponds to apk.
+    description: The type of app to bundle, either 'aab' (Android App Bundles) or 'apk'. Google's recommendation is aab, which is the default.
     type: enum
-    enum: ["bundle", "assemble"]
-    default: "bundle"
+    enum: ["aab", "apk"]
+    default: "aab"
 
 steps:
   - run:

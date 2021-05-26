@@ -81,23 +81,10 @@ steps:
       name: Clean drawable folders
       command: rm -rf android/app/src/main/res/drawable-*
 
-  - when:
-      condition:
-        equal: [aab, <<parameters.bundle_type>>]
-      steps:
-        - bundle_android_app:
-            project_path: <<parameters.project_path>>
-            build_type: <<parameters.build_type>>
-            bundle_type: "bundle"
-
-  - when:
-      condition:
-        equal: [apk, <<parameters.bundle_type>>]
-      steps:
-        - bundle_android_app:
-            project_path: <<parameters.project_path>>
-            build_type: <<parameters.build_type>>
-            bundle_type: "assemble"
+  - bundle_android_app:
+      project_path: <<parameters.project_path>>
+      build_type: <<parameters.build_type>>
+      bundle_type: <<parameters.bundle_type>>
 
   - run:
       name: Collecting Gradle Build caches for saving
