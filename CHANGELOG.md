@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.1...v1.0.2) (2021-05-26)
+
+
+### Bug Fixes
+
+* **android:** persist and store android build file ([9073f03](https://github.com/verypossible-labs/rn-circleci-orb/commit/9073f033ee47f33c3fc4cda1061f26238dcc0819))
+
 ## [1.0.1](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.0...v1.0.1) (2021-05-25)
 
 
