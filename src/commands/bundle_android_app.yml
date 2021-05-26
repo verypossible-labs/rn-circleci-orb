@@ -22,6 +22,7 @@ steps:
         cd <<parameters.project_path>>
         chmod +x gradlew
         ./gradlew clean
+
   - when:
       condition:
         equal: [aab, <<parameters.bundle_type>>]
@@ -30,6 +31,7 @@ steps:
             name: Bundle app
             command: |
               ./gradlew --build-cache --continue app:bundle<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
+
   - when:
       condition:
         equal: [apk, <<parameters.bundle_type>>]

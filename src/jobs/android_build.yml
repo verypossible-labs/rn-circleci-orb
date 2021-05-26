@@ -1,7 +1,5 @@
 description: Builds the Android app at the given path with the given build types.
 
-executor: linux_android
-
 parameters:
   # For this job
   checkout:
@@ -43,6 +41,8 @@ parameters:
     type: string
     default: ""
 
+executor: linux_android
+
 steps:
   - when:
       condition: <<parameters.checkout>>
@@ -79,7 +79,7 @@ steps:
               - persist_to_workspace:
                   root: .
                   paths:
-                    - <<parameters.project_path>>/app/build/outputs/bundle
+                    - <<parameters.project_path>>/app/build/outputs/bundle/release/app-release.aab
         - when:
             condition:
               equal: [apk, <<parameters.bundle_type>>]
@@ -87,7 +87,7 @@ steps:
               - persist_to_workspace:
                   root: .
                   paths:
-                    - <<parameters.project_path>>/app/build/outputs/apk
+                    - <<parameters.project_path>>/app/build/outputs/apk/release/app-release.apk
 
   - when:
       condition: <<parameters.store_artifacts>>
@@ -97,10 +97,10 @@ steps:
               equal: [aab, <<parameters.bundle_type>>]
             steps:
               - store_artifacts:
-                  path: <<parameters.project_path>>/app/build/outputs/bundle
+                  path: <<parameters.project_path>>/app/build/outputs/bundle/<<parameters.build_type>>/app-<<parameters.build_type>>.aab
         - when:
             condition:
               equal: [apk, <<parameters.bundle_type>>]
             steps:
               - store_artifacts:
-                  path: <<parameters.project_path>>/app/build/outputs/apk
+                  path: <<parameters.project_path>>/app/build/outputs/apk/<<parameters.build_type>>/app-<<parameters.build_type>>.apk
