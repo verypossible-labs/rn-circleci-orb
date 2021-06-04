@@ -14,6 +14,10 @@ parameters:
     type: enum
     enum: ["aab", "apk"]
     default: "aab"
+  exclude_js:
+    description: Exclude bundling JS in Gradle build command. JS will be bundled separately.
+    type: boolean
+    default: true
 
 steps:
   - run:
@@ -64,27 +68,31 @@ steps:
         - ~/.gradle/caches/
       key: gradle-home-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/build.gradle" }}-{{ checksum "~/.tmp/checksumfiles/settings.gradle" }}-{{ .Environment.CACHE_VERSION }}
 
-  - run:
-      name: Start Metro Bundler (background)
-      background: true
-      command: npx react-native start
+  - unless:
+      condition: <<parameters.exclude_js>>
+      steps:
+        - run:
+            name: Start Metro Bundler (background)
+            background: true
+            command: npx react-native start
 
-  # we bundle the JS and Assets separately to avoid memory heap issues when building the app
-  - run:
-      name: Bundle JS
-      command: |
-        mkdir -p android/app/build/generated/assets/react/release
-        npx react-native bundle --platform android --dev false  --entry-file index.js --bundle-output android/app/build/generated/assets/react/release/index.android.bundle --assets-dest android/app/src/main/res
+        # we bundle the JS and Assets separately to avoid memory heap issues when building the app
+        - run:
+            name: Bundle JS
+            command: |
+              mkdir -p android/app/build/generated/assets/react/release
+              npx react-native bundle --platform android --dev false  --entry-file index.js --bundle-output android/app/build/generated/assets/react/release/index.android.bundle --assets-dest android/app/src/main/res
 
-  # see: https://stackoverflow.com/questions/52652381/error-execution-failed-for-task-appmergereleaseresources-building-apk
-  - run:
-      name: Clean drawable folders
-      command: rm -rf android/app/src/main/res/drawable-*
+        # see: https://stackoverflow.com/questions/52652381/error-execution-failed-for-task-appmergereleaseresources-building-apk
+        - run:
+            name: Clean drawable folders
+            command: rm -rf android/app/src/main/res/drawable-*
 
   - bundle_android_app:
       project_path: <<parameters.project_path>>
       build_type: <<parameters.build_type>>
       bundle_type: <<parameters.bundle_type>>
+      exclude_js: <<parameters.exclude_js>>
 
   - run:
       name: Collecting Gradle Build caches for saving
