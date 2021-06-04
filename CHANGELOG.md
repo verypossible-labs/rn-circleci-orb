@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.4...v1.1.0) (2021-06-04)
+
+
+### Features
+
+* **android:** add option to exclude js bundle ([c08c512](https://github.com/verypossible-labs/rn-circleci-orb/commit/c08c51233aca0c0a4e27a14843a8c349e047f71d))
+
 ## [1.0.4](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.3...v1.0.4) (2021-05-26)
 
 
