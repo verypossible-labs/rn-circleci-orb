@@ -14,6 +14,10 @@ parameters:
     type: enum
     enum: ["aab", "apk"]
     default: "aab"
+  exclude_js:
+    description: Exclude bundling JS in Gradle build command. JS will be bundled separately.
+    type: boolean
+    default: true
 
 steps:
   - run:
@@ -32,7 +36,7 @@ steps:
             command: |
               cd <<parameters.project_path>>
               chmod +x gradlew
-              ./gradlew --build-cache --continue app:bundle<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
+              ./gradlew --build-cache --continue app:bundle<<parameters.build_type>> <<# parameters.exclude_js>> -x bundleReleaseJsAndAssets<</ parameters.exclude_js>> app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
 
   - when:
       condition:
@@ -43,4 +47,4 @@ steps:
             command: |
               cd <<parameters.project_path>>
               chmod +x gradlew
-              ./gradlew --build-cache --continue app:assemble<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
+              ./gradlew --build-cache --continue app:assemble<<parameters.build_type>> <<# parameters.exclude_js>> -x bundleReleaseJsAndAssets<</ parameters.exclude_js>> app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
