@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.1.0...v1.1.1) (2021-07-14)
+
+
+### Bug Fixes
+
+* **yarn:** remove deprecated --no-interactive flag ([e71c8a9](https://github.com/verypossible-labs/rn-circleci-orb/commit/e71c8a94bf4460ae815f511536a7a93e438f03ab))
+
 # [1.1.0](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.0.4...v1.1.0) (2021-06-04)
 
 
