@@ -1,1265 +1,1264 @@
 commands:
-    android_build:
-        description: Builds the Android app at the given path with the given build types. This should be run only after installing dependencies.
-        parameters:
-            build_type:
-                default: release
-                description: The build type to build. This is normally either "debug" or "release" but you may have custom build types configured for your app.
-                type: string
-            bundle_type:
-                default: aab
-                description: The type of app to bundle, either 'aab' (Android App Bundles) or 'apk'. Google's recommendation is aab, which is the default.
-                enum:
-                    - aab
-                    - apk
-                type: enum
-            project_path:
-                default: ./android
-                description: The path to the root of the Android project you want to build, relative to the root of the repository.
-                type: string
-        steps:
-            - run:
-                command: |
-                    mkdir -p ~/.tmp/checksumfiles
-                    find . -type f -name 'build.gradle' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/build.gradle
-                    find . -type f -name 'settings.gradle' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/settings.gradle
-                name: Create cache checksum files
-            - restore_cache:
-                keys:
-                    - gradle-wrapper-{{ arch }}-{{ checksum "<<parameters.project_path>>/gradle/wrapper/gradle-wrapper.properties" }}-{{ .Environment.CACHE_VERSION }}
-            - restore_cache:
-                keys:
-                    - gradle-home-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/build.gradle" }}-{{ checksum "~/.tmp/checksumfiles/settings.gradle" }}-{{ .Environment.CACHE_VERSION }}
-            - restore_cache:
-                keys:
-                    - gradle-build-cache-{{ .Revision }}
-                name: Restoring Gradle Build caches
-            - run:
-                command: |
-                    [ -d ~/gradle-build-caches ] &&
-                      [ -n "$(ls -A ~/gradle-build-caches)" ] &&
-                      rm -rf ~/.gradle/caches/build-cache-* &&
-                      mkdir -p ~/.gradle/caches/ &&
-                      mv ~/gradle-build-caches/* ~/.gradle/caches/ || true
-                name: Dispersing Gradle Build caches for restoring
-            - run:
-                command: |
-                    cd <<parameters.project_path>>
-                    chmod +x gradlew
-                    ./gradlew --max-workers 2 downloadDependencies
-                name: Downloading Gradle Dependencies
-            - save_cache:
-                key: gradle-wrapper-{{ arch }}-{{ checksum "<<parameters.project_path>>/gradle/wrapper/gradle-wrapper.properties" }}-{{ .Environment.CACHE_VERSION }}
-                name: Saving Gradle wrapper cache
-                paths:
-                    - ~/.gradle/wrapper/
-            - save_cache:
-                key: gradle-home-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/build.gradle" }}-{{ checksum "~/.tmp/checksumfiles/settings.gradle" }}-{{ .Environment.CACHE_VERSION }}
-                name: Saving Gradle home cache
-                paths:
-                    - ~/.gradle/caches/
-            - run:
-                background: true
-                command: npx react-native start
-                name: Start Metro Bundler (background)
-            - run:
-                command: |
-                    mkdir -p android/app/build/generated/assets/react/release
-                    npx react-native bundle --platform android --dev false  --entry-file index.js --bundle-output android/app/build/generated/assets/react/release/index.android.bundle --assets-dest android/app/src/main/res
-                name: Bundle JS
-            - run:
-                command: rm -rf android/app/src/main/res/drawable-*
-                name: Clean drawable folders
-            - when:
-                condition:
-                    equal:
-                        - aab
-                        - <<parameters.bundle_type>>
-                steps:
-                    - bundle_android_app:
-                        build_type: <<parameters.build_type>>
-                        bundle_type: bundle
-                        project_path: <<parameters.project_path>>
-            - when:
-                condition:
-                    equal:
-                        - apk
-                        - <<parameters.bundle_type>>
-                steps:
-                    - bundle_android_app:
-                        build_type: <<parameters.build_type>>
-                        bundle_type: assemble
-                        project_path: <<parameters.project_path>>
-            - run:
-                command: |
-                    mkdir -p ~/gradle-build-caches
-                    [ -d ~/.gradle/caches ] &&
-                    [ -n "$(ls -Ad ~/.gradle/caches/build-cache-* 2>/dev/null)" ] &&
-                    rm -rf ~/gradle-build-caches/* &&
-                    mv ~/.gradle/caches/build-cache-* ~/gradle-build-caches || true
-                name: Collecting Gradle Build caches for saving
-                when: always
-            - save_cache:
-                key: gradle-debug-build-cache-{{ .Revision }}
-                name: Saving Gradle Build caches
-                paths:
-                    - ~/gradle-build-caches
-                when: always
-    android_emulator_start:
-        description: Installs and starts an Android emulator with the given version and name.
-        parameters:
-            build_tools_version:
-                default: 29.0.3
-                description: The version of the Android build tools to install.
-                type: string
-            device_name:
-                default: TestingAVD
-                description: The name of the AVD. You use this name to tell which device to run tests on.
-                type: string
-            logcat_grep:
-                default: com.verypossible
-                description: ADB logs will be shown in the "Start Android Emulator" commands, but we filter it using grep to avoid noise. You can specify additional strings to grep for. Make sure you escape special characters.
-                type: string
-            platform_version:
-                default: android-30
-                description: The version of android to run on the emulator. Usually in the form of "android-30".
-                type: string
-        steps:
-            - run:
-                command: |
-                    yes | sdkmanager "platform-tools" "tools" >/dev/null
-                    yes | sdkmanager "platforms;<<parameters.platform_version>>" "system-images;<<parameters.platform_version>>;default;x86_64" >/dev/null
-                    yes | sdkmanager "emulator" --channel=3 >/dev/null
-                    yes | sdkmanager "build-tools;<<parameters.build_tools_version>>" >/dev/null
-                    yes | sdkmanager --licenses >/dev/null
-                    yes | sdkmanager --list
-                name: Install Android Emulator
-                shell: /bin/bash -e
-            - run:
-                command: |
-                    adb start-server
-                    adb devices
-                    adb kill-server
-                    ls -la ~/.android
-                name: ADB Start Stop
-            - run:
-                command: avdmanager create avd --force --name <<parameters.device_name>> --package "system-images;<<parameters.platform_version>>;default;x86_64" --tag default --device pixel
-                name: Create Android Emulator
-            - run:
-                background: true
-                command: |
-                    $ANDROID_HOME/emulator/emulator @<<parameters.device_name>> -version
-                    $ANDROID_HOME/emulator/emulator @<<parameters.device_name>> -cores 1 -gpu auto -accel on -memory 1024 -no-audio -no-snapshot -no-boot-anim -no-window -logcat *:W | grep -i 'ReactNative\|<<parameters.logcat_grep>>'
-                name: Start Android Emulator (background)
-            - run:
-                command: |
-                    export BOOT=""
-                    echo "Waiting for AVD to finish booting"
-                    export PATH=$(dirname $(dirname $(command -v android)))/platform-tools:$PATH
-                    until [[ "$BOOT" =~ "1" ]]; do
-                      sleep 5
-                      export BOOT=$(adb -e shell getprop sys.boot_completed 2>&1)
-                    done
-                    sleep 15
-                    adb shell settings put global window_animation_scale 0
-                    adb shell settings put global transition_animation_scale 0
-                    adb shell settings put global animator_duration_scale 0
-                    echo "Android Virtual Device is now ready."
-                name: Wait for AVD to be ready
-                no_output_timeout: 5m
-    bundle_android_app:
-        description: Bundles the Android app as the given bundle type at the given path. This is meant to be run inside the android_build command, but can also be run separately. This should be run only after installing dependencies.
-        parameters:
-            build_type:
-                default: release
-                description: The build type to build. This is normally either "debug" or "release" but you may have custom build types configured for your app.
-                type: string
-            bundle_type:
-                default: bundle
-                description: The type of app to bundle. 'bundle' corresponds to 'aab' where 'assemble' corresponds to apk.
-                enum:
-                    - bundle
-                    - assemble
-                type: enum
-            project_path:
-                default: ./android
-                description: The path to the root of the Android project you want to build, relative to the root of the repository.
-                type: string
-        steps:
-            - command: |
-                cd <<parameters.project_path>>
-                chmod +x gradlew
-                ./gradlew clean
-              name: Clean Gradle
-              run: null
-            - when:
-                condition:
-                    equal:
-                        - aab
-                        - <<parameters.bundle_type>>
-                steps:
-                    - run:
-                        command: |
-                            ./gradlew --build-cache --continue app:bundle<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
-                        name: Bundle app
-            - when:
-                condition:
-                    equal:
-                        - apk
-                        - <<parameters.bundle_type>>
-                steps:
-                    - run:
-                        command: |
-                            ./gradlew --build-cache --continue app:assemble<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
-                        name: Bundle app
-    decrypt_gpg_key:
-        description: Decrypt a secret key using GPG. This command can be used before build/deploy commands where you need a secret key for either task that can't be stored as an environment variable (e.g. a deployment pem key, etc.)
-        parameters:
-            input_key_path:
-                default: ""
-                description: The path of the key to decrypt relative to project root.
-                type: string
-            key_name:
-                default: ""
-                description: Name of the secret key environment variable. Should be found in your project's settings > environment variables.
-                type: string
-            output_key_path:
-                default: ""
-                description: The path to place the decrypted key relative to project  root.
-                type: string
-        steps:
-            - run:
-                command: |
-                    gpg --quiet --batch --yes --passphrase="<<parameters.key_name>>" \
-                      --output <<parameters.output_key_path>> <<parameters.input_key_path>>
-                name: Decrypt secret key
-    detox_build:
-        description: Builds the app with the given Detox configuration, as specified in package.json.
-        parameters:
-            configuration:
-                description: The Detox configuration to build.
-                type: string
-        steps:
-            - run:
-                command: detox build -c <<parameters.configuration>>
-                name: Detox Build
-    detox_test:
-        description: Tests the app with the given Detox configuration, as specified in package.json.
-        parameters:
-            configuration:
-                description: The Detox configuration to test.
-                type: string
-            loglevel:
-                default: warn
-                description: The Detox logging level to use. Must be one of "fatal", "error", "warn", "info", "verbose", or "trace".
-                enum:
-                    - fatal
-                    - error
-                    - warn
-                    - info
-                    - verbose
-                    - trace
-                type: enum
-        steps:
-            - run:
-                command: detox test -c <<parameters.configuration>> -l <<parameters.loglevel>> --headless
-                name: Detox Test
-    fastlane:
-        description: Runs a Fastlane lane for a given platform.
-        parameters:
-            description:
-                default: ""
-                description: Descriptor of the Fastlane lane running
-                type: string
-            lane:
-                default: beta
-                description: The fastlane lane to run for deployment.
-                type: string
-            platform:
-                default: ios
-                description: The platform to deploy, either "android" or "ios".
-                enum:
-                    - android
-                    - ios
-                type: enum
-        steps:
-            - yarn_install
-            - when:
-                condition:
-                    equal:
-                        - ios
-                        - <<parameters.platform>>
-                steps:
-                    - install_pods
-            - restore_cache:
-                key: 1-gems-{{ checksum "Gemfile.lock" }}
-            - run:
-                command: bundle check || bundle install --path vendor/bundle
-                name: Install gems from Gemfile.lock
-            - run:
-                command: fastlane install_plugins
-                name: Install Fastlane plugins
-            - save_cache:
-                key: 1-gems-{{ checksum "Gemfile.lock" }}
-                paths:
-                    - vendor/bundle
-            - run:
-                command: bundle exec fastlane <<parameters.platform>> <<parameters.lane>>
-                name: <<parameters.description>>
-    install_node:
-        description: Install node
-        parameters:
-            node_version:
-                default: lts
-                description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), a fully qualified version ("8.4.1"), or the long term stable release ("lts")
-                type: string
-        steps:
-            - when:
-                condition:
-                    equal:
-                        - lts
-                        - <<parameters.node_version>>
-                steps:
-                    - run:
-                        command: |
-                            nvm install --lts
-                            nvm alias default 'lts/*'
-                        name: Install Node LTS
-            - when:
-                condition:
-                    not:
-                        equal:
-                            - lts
-                            - <<parameters.node_version>>
-                steps:
-                    - run:
-                        command: |
-                            nvm install <<parameters.node_version>>
-                            nvm alias default <<parameters.node_version>>
-                        name: Install node@<<parameters.node_version>>
-    install_pods:
-        description: Install Cocoapods
-        parameters:
-            pod_install_directory:
-                default: ios
-                description: The location of the "ios" directory
-                type: string
-        steps:
-            - restore_cache:
-                key: cocoapods-{{ arch }}-{{ .Branch }}-{{ checksum "ios/Podfile.lock" }}
-            - run:
-                command: |
-                    cd <<parameters.pod_install_directory>> && pod install --repo-update && cd -
-                name: Install CocoaPods
-            - save_cache:
-                key: cocoapods-{{ arch }}-{{ .Branch }}-{{ checksum "ios/Podfile.lock" }}
-                paths:
-                    - <<parameters.pod_install_directory>>/Pods
-    ios_build:
-        description: Builds the iOS app at the given path with the given build scheme and configuration. This should be run only after installing NPM dependencies.
-        parameters:
-            build_configuration:
-                default: Debug
-                description: The build configuration to use. This is normally either "Debug" or "Release" but you may have custom build configuration configured for your app.
-                type: string
-            derived_data_path:
-                default: ios/build
-                description: The path to the directory to place the derived data, relative to the root of the repository.
-                type: string
-            device:
-                default: iPhone 12
-                description: The type of device you want to build for.
-                type: string
-            project_path:
-                description: The path to the Xcode project (*.xcodeproj) or the Xcode workspace (*.xcworkspace) that you want to build, relative to the root of the repository.
-                type: string
-            project_type:
-                default: workspace
-                description: If the iOS app is built using a project file (*.xcodeproj) or a workspace (*.xcworkspace).
-                enum:
-                    - project
-                    - workspace
-                type: enum
-            scheme:
-                description: The scheme to use.
-                type: string
-        steps:
-            - restore_cache:
-                keys:
-                    - ios-build-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ .Environment.CACHE_VERSION }}
-                name: Restoring iOS Build caches
-            - run:
-                command: |
-                    export RCT_NO_LAUNCH_PACKAGER=true
-                    xcodebuild -<<parameters.project_type>> <<parameters.project_path>> -destination 'platform=iOS Simulator,name=<<parameters.device>>' -scheme <<parameters.scheme>> -parallelizeTargets -configuration <<parameters.build_configuration>> -derivedDataPath <<parameters.derived_data_path>>  -UseModernBuildSystem=YES | xcpretty -k
-                name: Build iOS App
-            - save_cache:
-                key: ios-build-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ .Environment.CACHE_VERSION }}
-                name: Saving iOS Build Cache
-                paths:
-                    - <<parameters.derived_data_path>>/Build
-                when: always
-    ios_simulator_start:
-        description: Starts an iOS simulator with the given name.
-        parameters:
-            device:
-                default: iPhone 12
-                description: The type of device you want to start.
-                type: string
-        steps:
-            - run:
-                background: true
-                command: xcrun simctl boot "<<parameters.device>>" || true
-                name: Start iOS simulator (background)
-    metro_start:
-        description: Starts the Metro packager.
-        steps:
-            - run:
-                background: true
-                command: react-native start
-                name: Start Metro Packager (Background)
-    setup_macos_executor:
-        description: Installs the required packages to build and test Android and iOS applications on the MacOS executor. You need to run this before running any other command on those executors.
-        parameters:
-            node_version:
-                default: lts
-                description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), a fully qualified version ("8.4.1"), or the long term stable release ("lts")
-                type: string
-        steps:
-            - run:
-                command: |
-                    echo 'export PATH="$PATH:/usr/local/opt/node@<<parameters.node_version>>/bin:~/.yarn/bin:~/project/node_modules/.bin:~/project/example/node_modules/.bin"' >> $BASH_ENV
-                    echo 'export ANDROID_HOME="/usr/local/share/android-sdk"' >> $BASH_ENV
-                    echo 'export ANDROID_SDK_ROOT="/usr/local/share/android-sdk"' >> $BASH_ENV
-                    echo 'export PATH="$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/tools:$ANDROID_SDK_ROOT/platform-tools:$PATH"' >> $BASH_ENV
-                    echo 'export QEMU_AUDIO_DRV=none' >> $BASH_ENV
-                    echo 'export JAVA_HOME=$(/usr/libexec/java_home)' >> $BASH_ENV
-                    source $BASH_ENV
-                name: Configure Environment Variables
-            - restore_cache:
-                key: |
-                    brew-cache-{{ arch }}-{{ .Environment.CACHE_VERSION }}
-            - run:
-                command: |
-                    set +e
-                    curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.35.3/install.sh | bash
-                    echo 'export NVM_DIR=$HOME/.nvm' >> $BASH_ENV
-                    echo 'source $NVM_DIR/nvm.sh' >> $BASH_ENV
-                    source ~/.bashrc
-                    command -v nvm
-                name: Install NVM
-            - install_node:
-                node_version: <<parameters.node_version>>
-            - run:
-                command: node --version
-                name: Verify node version
-            - run:
-                command: |
-                    HOMEBREW_NO_AUTO_UPDATE=1 brew tap wix/brew >/dev/null
-                    HOMEBREW_NO_AUTO_UPDATE=1 brew tap homebrew/cask >/dev/null
-                    HOMEBREW_NO_AUTO_UPDATE=1 brew install applesimutils >/dev/null
-                    HOMEBREW_NO_AUTO_UPDATE=1 brew install --cask android-sdk >/dev/null
-                    touch .watchmanconfig
-                    node -v
-                name: Configure Detox Environment
-            - save_cache:
-                key: |
-                    brew-cache-{{ arch }}-{{ .Environment.CACHE_VERSION }}
-                paths:
-                    - /usr/local/Homebrew
-                    - ~/Library/Caches/Homebrew
-    yarn_install:
-        description: Install Javascript dependencies using Yarn. This command correctly configures the cache for any number of package.json and yarn.lock files.
-        parameters:
-            cache:
-                default: true
-                description: Save and restore the build cache? Defaults to true
-                type: boolean
-        steps:
-            - run:
-                command: |
-                    mkdir -p ~/.tmp/checksumfiles
-                    find . -type f -name 'package.json' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/package.json
-                    find . -type f -name 'yarn.lock' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/yarn.lock
-                name: Create cache checksum file
-            - restore_cache:
-                keys:
-                    - yarn-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ checksum "~/.tmp/checksumfiles/yarn.lock" }}
-            - run:
-                command: yarn install --frozen-lockfile --non-interactive --cache-folder /tmp/yarn
-                name: Yarn Install
-            - save_cache:
-                key: |
-                    yarn-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ checksum "~/.tmp/checksumfiles/yarn.lock" }}
-                paths:
-                    - /tmp/yarn
-description: |
-    Orb for building and testing React Native projects. View
-    this orb's source: https://github.com/verypossible-labs/rn-circleci-orb.git
-examples:
-    full-deploy:
-        jobs:
-            analyze_js:
-                executor: rn/linux_js
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/yarn_install
-                    - run:
-                        command: yarn lint
-                        name: Run eslint
-                    - run:
-                        command: yarn test
-                        name: Run unit tests
-            checkout_code:
-                executor:
-                    name: rn/linux_js
-                steps:
-                    - checkout
-                    - persist_to_workspace:
-                        paths: .
-                        root: .
-            deploy_android_internal:
-                executor: rn/macos
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/fastlane:
-                        description: Deploy a beta build to the Google Play Store
-                        lane: internal
-                        platform: android
-            deploy_ios_beta:
-                executor: rn/macos
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/fastlane:
-                        description: Deploy beta app build to TestFlight
-                        lane: beta
-                        platform: ios
-        orbs:
-            rn: verypossible-labs/react-native@1.0.0
-        references:
-            attach_workspace:
-                attach_workspace:
-                    at: .
-            persist_to_workspace:
-                persist_to_workspace:
-                    paths: .
-                    root: .
-        version: 2.1
-        workflows:
-            build_and_deploy:
-                jobs:
-                    - checkout_code
-                    - analyze_js:
-                        requires:
-                            - checkout_code
-                    - rn/ios_build_and_test:
-                        build_configuration: Release
-                        device: iPhone 11 Pro
-                        name: build_ios_release
-                        node_version: lts
-                        project_path: ios/MyApp.xcworkspace
-                        project_type: workspace
-                        requires:
-                            - analyze_js
-                        scheme: MyApp
-                    - rn/android_build:
-                        build_type: release
-                        bundle_type: aab
-                        name: build_android_release
-                        requires:
-                            - analyze_js
-                    - rn/android_test:
-                        device_name: MyAppAVD
-                        name: android_e2e
-                        platform_version: android-30
-                        requires:
-                            - build_android_release
-                    - deploy_ios_beta:
-                        requires:
-                            - build_ios_release
-                    - deploy_android_internal:
-                        requires:
-                            - build_android_release
-    full-deploy-branches:
-        jobs:
-            analyze_js:
-                executor: rn/linux_js
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/yarn_install
-                    - run:
-                        command: yarn lint
-                        name: Run eslint
-                    - run:
-                        command: yarn test
-                        name: Run unit tests
-            checkout_code:
-                executor:
-                    name: rn/linux_js
-                steps:
-                    - checkout
-                    - persist_to_workspace:
-                        paths: .
-                        root: .
-            deploy_android_internal:
-                executor: rn/macos
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/fastlane:
-                        description: Deploy a beta build to the Google Play Store
-                        lane: internal
-                        platform: android
-            deploy_android_release:
-                executor: rn/macos
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/fastlane:
-                        description: Deploy a beta build to the Google Play Store
-                        lane: release
-                        platform: android
-            deploy_ios_beta:
-                executor: rn/macos
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/fastlane:
-                        description: Deploy beta app build to TestFlight
-                        lane: beta
-                        platform: ios
-            deploy_ios_release:
-                executor: rn/macos
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/fastlane:
-                        description: Deploy app release build to the App Store
-                        lane: release
-                        platform: ios
-        orbs:
-            rn: verypossible-labs/react-native@1.0.0
-        references:
-            attach_workspace:
-                attach_workspace:
-                    at: .
-            persist_to_workspace:
-                persist_to_workspace:
-                    paths: .
-                    root: .
-        version: 2.1
-        workflows:
-            build_and_deploy:
-                jobs:
-                    - checkout_code
-                    - analyze_js:
-                        requires:
-                            - checkout_code
-                    - rn/ios_build_and_test:
-                        build_configuration: Release
-                        device: iPhone 11 Pro
-                        filters:
-                            branches:
-                                ignore:
-                                    - staging
-                                    - main
-                        name: build_ios_release
-                        node_version: lts
-                        project_path: ios/MyApp.xcworkspace
-                        project_type: workspace
-                        requires:
-                            - analyze_js
-                        scheme: MyApp
-                    - rn/android_build:
-                        build_type: release
-                        bundle_type: aab
-                        filters:
-                            branches:
-                                ignore:
-                                    - staging
-                                    - main
-                        name: build_android_release
-                        requires:
-                            - analyze_js
-                    - rn/android_test:
-                        device_name: MyAppAVD
-                        filters:
-                            branches:
-                                ignore:
-                                    - staging
-                                    - main
-                        name: android_e2e
-                        platform_version: android-30
-                        requires:
-                            - build_android_release
-                    - deploy_ios_beta:
-                        filters:
-                            branches:
-                                only:
-                                    - staging
-                        requires:
-                            - build_ios_release
-                    - deploy_android_internal:
-                        filters:
-                            branches:
-                                only:
-                                    - staging
-                        requires:
-                            - build_android_release
-                    - deploy_ios_release:
-                        filters:
-                            branches:
-                                only:
-                                    - main
-                        requires:
-                            - build_ios_release
-                    - deploy_android_release:
-                        filters:
-                            branches:
-                                only:
-                                    - main
-                        requires:
-                            - build_android_release
-    img: {}
-    simple-build:
-        jobs:
-            analyze_js:
-                executor: rn/linux_js
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/yarn_install
-                    - run:
-                        command: yarn lint
-                        name: Run eslint
-                    - run:
-                        command: yarn test
-                        name: Run unit tests
-            checkout_code:
-                executor:
-                    name: rn/linux_js
-                steps:
-                    - checkout
-                    - persist_to_workspace:
-                        paths: .
-                        root: .
-        orbs:
-            rn: verypossible-labs/react-native@1.0.0
-        references:
-            attach_workspace:
-                attach_workspace:
-                    at: .
-            persist_to_workspace:
-                persist_to_workspace:
-                    paths: .
-                    root: .
-        version: 2.1
-        workflows:
-            build:
-                jobs:
-                    - checkout_code
-                    - analyze_js:
-                        requires:
-                            - checkout_code
-                    - rn/ios_build_and_test:
-                        build_configuration: Release
-                        device: iPhone 11 Pro
-                        name: build_ios_release
-                        node_version: lts
-                        project_path: ios/MyApp.xcworkspace
-                        project_type: workspace
-                        requires:
-                            - analyze_js
-                        scheme: MyApp
-                    - rn/android_build:
-                        build_type: release
-                        bundle_type: aab
-                        name: build_android_release
-                        requires:
-                            - analyze_js
-    simple-e2e:
-        jobs:
-            analyze_js:
-                executor: rn/linux_js
-                steps:
-                    - attach_workspace:
-                        at: .
-                    - rn/yarn_install
-                    - run:
-                        command: yarn lint
-                        name: Run eslint
-                    - run:
-                        command: yarn test
-                        name: Run unit tests
-            checkout_code:
-                executor:
-                    name: rn/linux_js
-                steps:
-                    - checkout
-                    - persist_to_workspace:
-                        paths: .
-                        root: .
-        orbs:
-            rn: verypossible-labs/react-native@1.0.0
-        references:
-            attach_workspace:
-                attach_workspace:
-                    at: .
-            persist_to_workspace:
-                persist_to_workspace:
-                    paths: .
-                    root: .
-        version: 2.1
-        workflows:
-            build:
-                jobs:
-                    - checkout_code
-                    - analyze_js:
-                        requires:
-                            - checkout_code
-                    - rn/ios_build_and_test:
-                        build_configuration: Release
-                        device: iPhone 11 Pro
-                        name: build_ios_release
-                        node_version: lts
-                        project_path: ios/MyApp.xcworkspace
-                        project_type: workspace
-                        requires:
-                            - analyze_js
-                        scheme: MyApp
-                    - rn/android_build:
-                        build_type: release
-                        bundle_type: aab
-                        name: build_android_release
-                        requires:
-                            - analyze_js
-executors:
-    linux_android:
-        docker:
-            - image: reactnativecommunity/react-native-android
-        environment:
-            - NODE_OPTIONS: <<parameters.node_options>>
-            - _JAVA_OPTIONS: <<parameters.java_options>>
-            - GRADLE_OPTS: <<parameters.gradle_options>>
-        parameters:
-            gradle_options:
-                default: -Xmx2014m -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs="-XX:+UnlockExperimentalVMOptions -XX:+HeapDumpOnOutOfMemoryError"
-                description: Gradle command options. Note that setting this will override the default options so you might need to supply those as well.
-                type: string
-            java_options:
-                default: -Xmx1024m -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap
-                description: Java command options. Note that setting this will override the default options so you might need to supply those as well.
-                type: string
-            node_options:
-                default: --max-old-space-size=8192
-                description: Node command options. Typically used for increasing memory, increases to 8192 by default.
-                type: string
-            resource_class:
-                default: medium
-                description: Changes the resource class of the executor. Requires a support request to enable the resource_class parameter. See https://circleci.com/docs/2.0/configuration-reference/#resource_class
-                type: string
-        resource_class: <<parameters.resource_class>>
-    linux_js:
-        docker:
-            - image: cimg/node:<<parameters.node_version>>
-        environment:
-            - PATH: /opt/yarn/yarn-v1.5.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-        parameters:
-            node_version:
-                default: lts
-                description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), or a fully qualified version ("8.4.1").
-                type: string
-            resource_class:
-                default: medium
-                description: Changes the resource class of the executor. Requires a support request to enable the resource_class parameter. See https://circleci.com/docs/2.0/configuration-reference/#resource_class
-                type: string
-        resource_class: <<parameters.resource_class>>
-    macos:
-        macos:
-            xcode: <<parameters.xcode_version>>
-        parameters:
-            resource_class:
-                default: medium
-                description: Changes the resource class of the executor. Requires a support request to enable the resource_class parameter. See https://circleci.com/docs/2.0/configuration-reference/#resource_class
-                type: string
-            xcode_version:
-                default: 12.4.0
-                description: The version of Xcode to use. See here for the list of supported versions https://circleci.com/docs/2.0/testing-ios/#supported-xcode-versions
-                type: string
-        resource_class: <<parameters.resource_class>>
-jobs:
-    android_build:
-        description: Builds the Android app at the given path with the given build types.
-        executor: linux_android
-        parameters:
-            attach_workspace:
-                default: true
-                description: Boolean for whether or not to attach to an existing workspace. Default is true.
-                type: boolean
-            build_type:
-                default: debug
-                description: The build type to build. This is normally either "debug" or "release" but you may have custom build types configured for your app.
-                type: string
-            bundle_type:
-                default: aab
-                description: The type of app to bundle, either 'aab' (Android App Bundles) or 'apk'. Google's recommendation is aab, which is the default.
-                enum:
-                    - aab
-                    - apk
-                type: enum
-            checkout:
-                default: false
-                description: Boolean for whether or not to checkout as a first step. Default is false.
-                type: boolean
-            on_after_initialize:
-                default: ""
-                description: A custom command to run right after yarn install.
-                type: string
-            persist_to_workspace:
-                default: true
-                description: Should this job persist files to a workspace? Defaults to true
-                type: boolean
-            project_path:
-                default: ./android
-                description: The path to the root of the Android project you want to build, relative to the root of the repository.
-                type: string
-            store_artifacts:
-                default: true
-                description: Store this job store files as job artifacts? Defaults to true
-                type: boolean
-            workspace_root:
-                default: .
-                description: Workspace root path that is either an absolute path or a path relative to the working directory. Defaults to '.' (the working directory).
-                type: string
-        steps:
-            - when:
-                condition: <<parameters.checkout>>
-                steps:
-                    - checkout
-            - when:
-                condition: <<parameters.attach_workspace>>
-                steps:
-                    - attach_workspace:
-                        at: <<parameters.workspace_root>>
-            - yarn_install
-            - when:
-                condition: <<parameters.on_after_initialize>>
-                steps:
-                    - run:
-                        command: <<parameters.on_after_initialize>>
-                        name: on_after_initialize
-            - android_build:
+  android_build:
+    description: Builds the Android app at the given path with the given build types. This should be run only after installing dependencies.
+    parameters:
+      build_type:
+        default: release
+        description: The build type to build. This is normally either "debug" or "release" but you may have custom build types configured for your app.
+        type: string
+      bundle_type:
+        default: aab
+        description: The type of app to bundle, either 'aab' (Android App Bundles) or 'apk'. Google's recommendation is aab, which is the default.
+        enum:
+          - aab
+          - apk
+        type: enum
+      project_path:
+        default: ./android
+        description: The path to the root of the Android project you want to build, relative to the root of the repository.
+        type: string
+    steps:
+      - run:
+          command: |
+            mkdir -p ~/.tmp/checksumfiles
+            find . -type f -name 'build.gradle' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/build.gradle
+            find . -type f -name 'settings.gradle' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/settings.gradle
+          name: Create cache checksum files
+      - restore_cache:
+          keys:
+            - gradle-wrapper-{{ arch }}-{{ checksum "<<parameters.project_path>>/gradle/wrapper/gradle-wrapper.properties" }}-{{ .Environment.CACHE_VERSION }}
+      - restore_cache:
+          keys:
+            - gradle-home-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/build.gradle" }}-{{ checksum "~/.tmp/checksumfiles/settings.gradle" }}-{{ .Environment.CACHE_VERSION }}
+      - restore_cache:
+          keys:
+            - gradle-build-cache-{{ .Revision }}
+          name: Restoring Gradle Build caches
+      - run:
+          command: |
+            [ -d ~/gradle-build-caches ] &&
+              [ -n "$(ls -A ~/gradle-build-caches)" ] &&
+              rm -rf ~/.gradle/caches/build-cache-* &&
+              mkdir -p ~/.gradle/caches/ &&
+              mv ~/gradle-build-caches/* ~/.gradle/caches/ || true
+          name: Dispersing Gradle Build caches for restoring
+      - run:
+          command: |
+            cd <<parameters.project_path>>
+            chmod +x gradlew
+            ./gradlew --max-workers 2 downloadDependencies
+          name: Downloading Gradle Dependencies
+      - save_cache:
+          key: gradle-wrapper-{{ arch }}-{{ checksum "<<parameters.project_path>>/gradle/wrapper/gradle-wrapper.properties" }}-{{ .Environment.CACHE_VERSION }}
+          name: Saving Gradle wrapper cache
+          paths:
+            - ~/.gradle/wrapper/
+      - save_cache:
+          key: gradle-home-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/build.gradle" }}-{{ checksum "~/.tmp/checksumfiles/settings.gradle" }}-{{ .Environment.CACHE_VERSION }}
+          name: Saving Gradle home cache
+          paths:
+            - ~/.gradle/caches/
+      - run:
+          background: true
+          command: npx react-native start
+          name: Start Metro Bundler (background)
+      - run:
+          command: |
+            mkdir -p android/app/build/generated/assets/react/release
+            npx react-native bundle --platform android --dev false  --entry-file index.js --bundle-output android/app/build/generated/assets/react/release/index.android.bundle --assets-dest android/app/src/main/res
+          name: Bundle JS
+      - run:
+          command: rm -rf android/app/src/main/res/drawable-*
+          name: Clean drawable folders
+      - when:
+          condition:
+            equal:
+              - aab
+              - <<parameters.bundle_type>>
+          steps:
+            - bundle_android_app:
                 build_type: <<parameters.build_type>>
-                bundle_type: <<parameters.bundle_type>>
+                bundle_type: bundle
                 project_path: <<parameters.project_path>>
-            - when:
-                condition: <<parameters.persist_to_workspace>>
-                steps:
-                    - persist_to_workspace:
-                        paths:
-                            - <<parameters.project_path>>/app/build/outputs/<<parameters.bundle_type>>
-                        root: .
-            - when:
-                condition: <<parameters.store_artifacts>>
-                steps:
-                    - store_artifacts:
-                        path: <<parameters.project_path>>/app/build/outputs/<<parameters.bundle_type>>
-    android_test:
-        description: Tests the Android app on the given device, with the given Detox configuration. You should have already built the correct Android APK (including the androidTest APK) and have both persisted to the worksapce.
-        executor: macos
-        parameters:
-            build_tools_version:
-                default: 28.0.3
-                description: The version of the Android build tools to install. Defaults to '28.0.3'.
-                type: string
-            detox_configuration:
-                default: android.emu.release
-                description: The Detox configuration to test. Defaults to 'android.emu.release'.
-                type: string
-            detox_loglevel:
-                default: warn
-                description: The Detox logging level to use. Must be one of "fatal", "error", "warn", "info", "verbose", or "trace".
-                enum:
-                    - fatal
-                    - error
-                    - warn
-                    - info
-                    - verbose
-                    - trace
-                type: enum
-            device_name:
-                default: TestingAVD
-                description: The name of the AVD. You use this name to tell which device to run tests on. Defaults to 'TestingAVD'.
-                type: string
-            logcat_grep:
-                default: com.reactnativecommunity
-                description: ADB logs will be shown in the "Start Android Emulator" commands, but we filter it using grep to avoid noise. You can specify additional strings to grep for. Make sure you escape special characters. Defaults to 'com.reactnativecommunity'.
-                type: string
-            node_version:
-                default: lts
-                description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), or a fully qualified version ("8.4.1").
-                type: string
-            on_after_initialize:
-                default: ""
-                description: A custom command to run right after yarn install.
-                type: string
-            platform_version:
-                default: android-28
-                description: The version of android to run on the emulator. Defaults to 'android-28'.
-                type: string
-            should_on_after_initialize:
-                default: false
-                description: Set this to true if you want to run a custom shell command right after yarn install. Provide the command in on_after_initialize_command
-                type: boolean
-            start_metro:
-                default: false
-                description: If we should start the Metro packager in the background for this job.
-                type: boolean
-            store_artifact_path:
-                default: ""
-                description: Stores detox artifacts at CircleCI
-                type: string
-            workspace_root:
-                default: .
-                description: Workspace root path that is either an absolute path or a path relative to the working directory. Defaults to '.' (the working directory).
-                type: string
+      - when:
+          condition:
+            equal:
+              - apk
+              - <<parameters.bundle_type>>
+          steps:
+            - bundle_android_app:
+                build_type: <<parameters.build_type>>
+                bundle_type: assemble
+                project_path: <<parameters.project_path>>
+      - run:
+          command: |
+            mkdir -p ~/gradle-build-caches
+            [ -d ~/.gradle/caches ] &&
+            [ -n "$(ls -Ad ~/.gradle/caches/build-cache-* 2>/dev/null)" ] &&
+            rm -rf ~/gradle-build-caches/* &&
+            mv ~/.gradle/caches/build-cache-* ~/gradle-build-caches || true
+          name: Collecting Gradle Build caches for saving
+          when: always
+      - save_cache:
+          key: gradle-debug-build-cache-{{ .Revision }}
+          name: Saving Gradle Build caches
+          paths:
+            - ~/gradle-build-caches
+          when: always
+  android_emulator_start:
+    description: Installs and starts an Android emulator with the given version and name.
+    parameters:
+      build_tools_version:
+        default: 29.0.3
+        description: The version of the Android build tools to install.
+        type: string
+      device_name:
+        default: TestingAVD
+        description: The name of the AVD. You use this name to tell which device to run tests on.
+        type: string
+      logcat_grep:
+        default: com.verypossible
+        description: ADB logs will be shown in the "Start Android Emulator" commands, but we filter it using grep to avoid noise. You can specify additional strings to grep for. Make sure you escape special characters.
+        type: string
+      platform_version:
+        default: android-30
+        description: The version of android to run on the emulator. Usually in the form of "android-30".
+        type: string
+    steps:
+      - run:
+          command: |
+            yes | sdkmanager "platform-tools" "tools" >/dev/null
+            yes | sdkmanager "platforms;<<parameters.platform_version>>" "system-images;<<parameters.platform_version>>;default;x86_64" >/dev/null
+            yes | sdkmanager "emulator" --channel=3 >/dev/null
+            yes | sdkmanager "build-tools;<<parameters.build_tools_version>>" >/dev/null
+            yes | sdkmanager --licenses >/dev/null
+            yes | sdkmanager --list
+          name: Install Android Emulator
+          shell: /bin/bash -e
+      - run:
+          command: |
+            adb start-server
+            adb devices
+            adb kill-server
+            ls -la ~/.android
+          name: ADB Start Stop
+      - run:
+          command: avdmanager create avd --force --name <<parameters.device_name>> --package "system-images;<<parameters.platform_version>>;default;x86_64" --tag default --device pixel
+          name: Create Android Emulator
+      - run:
+          background: true
+          command: |
+            $ANDROID_HOME/emulator/emulator @<<parameters.device_name>> -version
+            $ANDROID_HOME/emulator/emulator @<<parameters.device_name>> -cores 1 -gpu auto -accel on -memory 1024 -no-audio -no-snapshot -no-boot-anim -no-window -logcat *:W | grep -i 'ReactNative\|<<parameters.logcat_grep>>'
+          name: Start Android Emulator (background)
+      - run:
+          command: |
+            export BOOT=""
+            echo "Waiting for AVD to finish booting"
+            export PATH=$(dirname $(dirname $(command -v android)))/platform-tools:$PATH
+            until [[ "$BOOT" =~ "1" ]]; do
+              sleep 5
+              export BOOT=$(adb -e shell getprop sys.boot_completed 2>&1)
+            done
+            sleep 15
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+            echo "Android Virtual Device is now ready."
+          name: Wait for AVD to be ready
+          no_output_timeout: 5m
+  bundle_android_app:
+    description: Bundles the Android app as the given bundle type at the given path. This is meant to be run inside the android_build command, but can also be run separately. This should be run only after installing dependencies.
+    parameters:
+      build_type:
+        default: release
+        description: The build type to build. This is normally either "debug" or "release" but you may have custom build types configured for your app.
+        type: string
+      bundle_type:
+        default: bundle
+        description: The type of app to bundle. 'bundle' corresponds to 'aab' where 'assemble' corresponds to apk.
+        enum:
+          - bundle
+          - assemble
+        type: enum
+      project_path:
+        default: ./android
+        description: The path to the root of the Android project you want to build, relative to the root of the repository.
+        type: string
+    steps:
+      - command: |
+          cd <<parameters.project_path>>
+          chmod +x gradlew
+          ./gradlew clean
+        name: Clean Gradle
+        run: null
+      - when:
+          condition:
+            equal:
+              - aab
+              - <<parameters.bundle_type>>
+          steps:
+            - run:
+                command: |
+                  ./gradlew --build-cache --continue app:bundle<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
+                name: Bundle app
+      - when:
+          condition:
+            equal:
+              - apk
+              - <<parameters.bundle_type>>
+          steps:
+            - run:
+                command: |
+                  ./gradlew --build-cache --continue app:assemble<<parameters.build_type>> -x bundleReleaseJsAndAssets app:assembleAndroidTest -DtestBuildType=<<parameters.build_type>> --stacktrace
+                name: Bundle app
+  decrypt_gpg_key:
+    description: Decrypt a secret key using GPG. This command can be used before build/deploy commands where you need a secret key for either task that can't be stored as an environment variable (e.g. a deployment pem key, etc.)
+    parameters:
+      input_key_path:
+        default: ""
+        description: The path of the key to decrypt relative to project root.
+        type: string
+      key_name:
+        default: ""
+        description: Name of the secret key environment variable. Should be found in your project's settings > environment variables.
+        type: string
+      output_key_path:
+        default: ""
+        description: The path to place the decrypted key relative to project  root.
+        type: string
+    steps:
+      - run:
+          command: |
+            gpg --quiet --batch --yes --passphrase="<<parameters.key_name>>" \
+              --output <<parameters.output_key_path>> <<parameters.input_key_path>>
+          name: Decrypt secret key
+  detox_build:
+    description: Builds the app with the given Detox configuration, as specified in package.json.
+    parameters:
+      configuration:
+        description: The Detox configuration to build.
+        type: string
+    steps:
+      - run:
+          command: detox build -c <<parameters.configuration>>
+          name: Detox Build
+  detox_test:
+    description: Tests the app with the given Detox configuration, as specified in package.json.
+    parameters:
+      configuration:
+        description: The Detox configuration to test.
+        type: string
+      loglevel:
+        default: warn
+        description: The Detox logging level to use. Must be one of "fatal", "error", "warn", "info", "verbose", or "trace".
+        enum:
+          - fatal
+          - error
+          - warn
+          - info
+          - verbose
+          - trace
+        type: enum
+    steps:
+      - run:
+          command: detox test -c <<parameters.configuration>> -l <<parameters.loglevel>> --headless
+          name: Detox Test
+  fastlane:
+    description: Runs a Fastlane lane for a given platform.
+    parameters:
+      description:
+        default: ""
+        description: Descriptor of the Fastlane lane running
+        type: string
+      lane:
+        default: beta
+        description: The fastlane lane to run for deployment.
+        type: string
+      platform:
+        default: ios
+        description: The platform to deploy, either "android" or "ios".
+        enum:
+          - android
+          - ios
+        type: enum
+    steps:
+      - yarn_install
+      - when:
+          condition:
+            equal:
+              - ios
+              - <<parameters.platform>>
+          steps:
+            - install_pods
+      - restore_cache:
+          key: 1-gems-{{ checksum "Gemfile.lock" }}
+      - run:
+          command: bundle check || bundle install --path vendor/bundle
+          name: Install gems from Gemfile.lock
+      - run:
+          command: fastlane install_plugins
+          name: Install Fastlane plugins
+      - save_cache:
+          key: 1-gems-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
+      - run:
+          command: bundle exec fastlane <<parameters.platform>> <<parameters.lane>>
+          name: <<parameters.description>>
+  install_node:
+    description: Install node
+    parameters:
+      node_version:
+        default: lts
+        description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), a fully qualified version ("8.4.1"), or the long term stable release ("lts")
+        type: string
+    steps:
+      - when:
+          condition:
+            equal:
+              - lts
+              - <<parameters.node_version>>
+          steps:
+            - run:
+                command: |
+                  nvm install --lts
+                  nvm alias default 'lts/*'
+                name: Install Node LTS
+      - when:
+          condition:
+            not:
+              equal:
+                - lts
+                - <<parameters.node_version>>
+          steps:
+            - run:
+                command: |
+                  nvm install <<parameters.node_version>>
+                  nvm alias default <<parameters.node_version>>
+                name: Install node@<<parameters.node_version>>
+  install_pods:
+    description: Install Cocoapods
+    parameters:
+      pod_install_directory:
+        default: ios
+        description: The location of the "ios" directory
+        type: string
+    steps:
+      - restore_cache:
+          key: cocoapods-{{ arch }}-{{ .Branch }}-{{ checksum "ios/Podfile.lock" }}
+      - run:
+          command: |
+            cd <<parameters.pod_install_directory>> && pod install --repo-update && cd -
+          name: Install CocoaPods
+      - save_cache:
+          key: cocoapods-{{ arch }}-{{ .Branch }}-{{ checksum "ios/Podfile.lock" }}
+          paths:
+            - <<parameters.pod_install_directory>>/Pods
+  ios_build:
+    description: Builds the iOS app at the given path with the given build scheme and configuration. This should be run only after installing NPM dependencies.
+    parameters:
+      build_configuration:
+        default: Debug
+        description: The build configuration to use. This is normally either "Debug" or "Release" but you may have custom build configuration configured for your app.
+        type: string
+      derived_data_path:
+        default: ios/build
+        description: The path to the directory to place the derived data, relative to the root of the repository.
+        type: string
+      device:
+        default: iPhone 12
+        description: The type of device you want to build for.
+        type: string
+      project_path:
+        description: The path to the Xcode project (*.xcodeproj) or the Xcode workspace (*.xcworkspace) that you want to build, relative to the root of the repository.
+        type: string
+      project_type:
+        default: workspace
+        description: If the iOS app is built using a project file (*.xcodeproj) or a workspace (*.xcworkspace).
+        enum:
+          - project
+          - workspace
+        type: enum
+      scheme:
+        description: The scheme to use.
+        type: string
+    steps:
+      - restore_cache:
+          keys:
+            - ios-build-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ .Environment.CACHE_VERSION }}
+          name: Restoring iOS Build caches
+      - run:
+          command: |
+            export RCT_NO_LAUNCH_PACKAGER=true
+            xcodebuild -<<parameters.project_type>> <<parameters.project_path>> -destination 'platform=iOS Simulator,name=<<parameters.device>>' -scheme <<parameters.scheme>> -parallelizeTargets -configuration <<parameters.build_configuration>> -derivedDataPath <<parameters.derived_data_path>>  -UseModernBuildSystem=YES | xcpretty -k
+          name: Build iOS App
+      - save_cache:
+          key: ios-build-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ .Environment.CACHE_VERSION }}
+          name: Saving iOS Build Cache
+          paths:
+            - <<parameters.derived_data_path>>/Build
+          when: always
+  ios_simulator_start:
+    description: Starts an iOS simulator with the given name.
+    parameters:
+      device:
+        default: iPhone 12
+        description: The type of device you want to start.
+        type: string
+    steps:
+      - run:
+          background: true
+          command: xcrun simctl boot "<<parameters.device>>" || true
+          name: Start iOS simulator (background)
+  metro_start:
+    description: Starts the Metro packager.
+    steps:
+      - run:
+          background: true
+          command: react-native start
+          name: Start Metro Packager (Background)
+  setup_macos_executor:
+    description: Installs the required packages to build and test Android and iOS applications on the MacOS executor. You need to run this before running any other command on those executors.
+    parameters:
+      node_version:
+        default: lts
+        description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), a fully qualified version ("8.4.1"), or the long term stable release ("lts")
+        type: string
+    steps:
+      - run:
+          command: |
+            echo 'export PATH="$PATH:/usr/local/opt/node@<<parameters.node_version>>/bin:~/.yarn/bin:~/project/node_modules/.bin:~/project/example/node_modules/.bin"' >> $BASH_ENV
+            echo 'export ANDROID_HOME="/usr/local/share/android-sdk"' >> $BASH_ENV
+            echo 'export ANDROID_SDK_ROOT="/usr/local/share/android-sdk"' >> $BASH_ENV
+            echo 'export PATH="$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/tools:$ANDROID_SDK_ROOT/platform-tools:$PATH"' >> $BASH_ENV
+            echo 'export QEMU_AUDIO_DRV=none' >> $BASH_ENV
+            echo 'export JAVA_HOME=$(/usr/libexec/java_home)' >> $BASH_ENV
+            source $BASH_ENV
+          name: Configure Environment Variables
+      - restore_cache:
+          key: |
+            brew-cache-{{ arch }}-{{ .Environment.CACHE_VERSION }}
+      - run:
+          command: |
+            set +e
+            curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.35.3/install.sh | bash
+            echo 'export NVM_DIR=$HOME/.nvm' >> $BASH_ENV
+            echo 'source $NVM_DIR/nvm.sh' >> $BASH_ENV
+            source ~/.bashrc
+            command -v nvm
+          name: Install NVM
+      - install_node:
+          node_version: <<parameters.node_version>>
+      - run:
+          command: node --version
+          name: Verify node version
+      - run:
+          command: |
+            HOMEBREW_NO_AUTO_UPDATE=1 brew tap wix/brew >/dev/null
+            HOMEBREW_NO_AUTO_UPDATE=1 brew tap homebrew/cask >/dev/null
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install applesimutils >/dev/null
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install --cask android-sdk >/dev/null
+            touch .watchmanconfig
+            node -v
+          name: Configure Detox Environment
+      - save_cache:
+          key: |
+            brew-cache-{{ arch }}-{{ .Environment.CACHE_VERSION }}
+          paths:
+            - /usr/local/Homebrew
+            - ~/Library/Caches/Homebrew
+  yarn_install:
+    description: Install Javascript dependencies using Yarn. This command correctly configures the cache for any number of package.json and yarn.lock files.
+    parameters:
+      cache:
+        default: true
+        description: Save and restore the build cache? Defaults to true
+        type: boolean
+    steps:
+      - run:
+          command: |
+            mkdir -p ~/.tmp/checksumfiles
+            find . -type f -name 'package.json' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/package.json
+            find . -type f -name 'yarn.lock' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/yarn.lock
+          name: Create cache checksum file
+      - restore_cache:
+          keys:
+            - yarn-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ checksum "~/.tmp/checksumfiles/yarn.lock" }}
+      - run:
+          command: yarn install --frozen-lockfile --cache-folder /tmp/yarn
+          name: Yarn Install
+      - save_cache:
+          key: |
+            yarn-cache-{{ arch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ checksum "~/.tmp/checksumfiles/yarn.lock" }}
+          paths:
+            - /tmp/yarn
+description: |
+  Orb for building and testing React Native projects. View
+  this orb's source: https://github.com/verypossible-labs/rn-circleci-orb.git
+examples:
+  full-deploy:
+    jobs:
+      analyze_js:
+        executor: rn/linux_js
         steps:
+          - attach_workspace:
+              at: .
+          - rn/yarn_install
+          - run:
+              command: yarn lint
+              name: Run eslint
+          - run:
+              command: yarn test
+              name: Run unit tests
+      checkout_code:
+        executor:
+          name: rn/linux_js
+        steps:
+          - checkout
+          - persist_to_workspace:
+              paths: .
+              root: .
+      deploy_android_internal:
+        executor: rn/macos
+        steps:
+          - attach_workspace:
+              at: .
+          - rn/fastlane:
+              description: Deploy a beta build to the Google Play Store
+              lane: internal
+              platform: android
+      deploy_ios_beta:
+        executor: rn/macos
+        steps:
+          - attach_workspace:
+              at: .
+          - rn/fastlane:
+              description: Deploy beta app build to TestFlight
+              lane: beta
+              platform: ios
+    orbs:
+      rn: verypossible-labs/react-native@1.0.0
+    references:
+      attach_workspace:
+        attach_workspace:
+          at: .
+      persist_to_workspace:
+        persist_to_workspace:
+          paths: .
+          root: .
+    version: 2.1
+    workflows:
+      build_and_deploy:
+        jobs:
+          - checkout_code
+          - analyze_js:
+              requires:
+                - checkout_code
+          - rn/ios_build_and_test:
+              build_configuration: Release
+              device: iPhone 11 Pro
+              name: build_ios_release
+              node_version: lts
+              project_path: ios/MyApp.xcworkspace
+              project_type: workspace
+              requires:
+                - analyze_js
+              scheme: MyApp
+          - rn/android_build:
+              build_type: release
+              bundle_type: aab
+              name: build_android_release
+              requires:
+                - analyze_js
+          - rn/android_test:
+              device_name: MyAppAVD
+              name: android_e2e
+              platform_version: android-30
+              requires:
+                - build_android_release
+          - deploy_ios_beta:
+              requires:
+                - build_ios_release
+          - deploy_android_internal:
+              requires:
+                - build_android_release
+  full-deploy-branches:
+    jobs:
+      analyze_js:
+        executor: rn/linux_js
+        steps:
+          - attach_workspace:
+              at: .
+          - rn/yarn_install
+          - run:
+              command: yarn lint
+              name: Run eslint
+          - run:
+              command: yarn test
+              name: Run unit tests
+      checkout_code:
+        executor:
+          name: rn/linux_js
+        steps:
+          - checkout
+          - persist_to_workspace:
+              paths: .
+              root: .
+      deploy_android_internal:
+        executor: rn/macos
+        steps:
+          - attach_workspace:
+              at: .
+          - rn/fastlane:
+              description: Deploy a beta build to the Google Play Store
+              lane: internal
+              platform: android
+      deploy_android_release:
+        executor: rn/macos
+        steps:
+          - attach_workspace:
+              at: .
+          - rn/fastlane:
+              description: Deploy a beta build to the Google Play Store
+              lane: release
+              platform: android
+      deploy_ios_beta:
+        executor: rn/macos
+        steps:
+          - attach_workspace:
+              at: .
+          - rn/fastlane:
+              description: Deploy beta app build to TestFlight
+              lane: beta
+              platform: ios
+      deploy_ios_release:
+        executor: rn/macos
+        steps:
+          - attach_workspace:
+              at: .
+          - rn/fastlane:
+              description: Deploy app release build to the App Store
+              lane: release
+              platform: ios
+    orbs:
+      rn: verypossible-labs/react-native@1.0.0
+    references:
+      attach_workspace:
+        attach_workspace:
+          at: .
+      persist_to_workspace:
+        persist_to_workspace:
+          paths: .
+          root: .
+    version: 2.1
+    workflows:
+      build_and_deploy:
+        jobs:
+          - checkout_code
+          - analyze_js:
+              requires:
+                - checkout_code
+          - rn/ios_build_and_test:
+              build_configuration: Release
+              device: iPhone 11 Pro
+              filters:
+                branches:
+                  ignore:
+                    - staging
+                    - main
+              name: build_ios_release
+              node_version: lts
+              project_path: ios/MyApp.xcworkspace
+              project_type: workspace
+              requires:
+                - analyze_js
+              scheme: MyApp
+          - rn/android_build:
+              build_type: release
+              bundle_type: aab
+              filters:
+                branches:
+                  ignore:
+                    - staging
+                    - main
+              name: build_android_release
+              requires:
+                - analyze_js
+          - rn/android_test:
+              device_name: MyAppAVD
+              filters:
+                branches:
+                  ignore:
+                    - staging
+                    - main
+              name: android_e2e
+              platform_version: android-30
+              requires:
+                - build_android_release
+          - deploy_ios_beta:
+              filters:
+                branches:
+                  only:
+                    - staging
+              requires:
+                - build_ios_release
+          - deploy_android_internal:
+              filters:
+                branches:
+                  only:
+                    - staging
+              requires:
+                - build_android_release
+          - deploy_ios_release:
+              filters:
+                branches:
+                  only:
+                    - main
+              requires:
+                - build_ios_release
+          - deploy_android_release:
+              filters:
+                branches:
+                  only:
+                    - main
+              requires:
+                - build_android_release
+  img: {}
+  simple-build:
+    jobs:
+      analyze_js:
+        executor: rn/linux_js
+        steps:
+          - attach_workspace:
+              at: .
+          - rn/yarn_install
+          - run:
+              command: yarn lint
+              name: Run eslint
+          - run:
+              command: yarn test
+              name: Run unit tests
+      checkout_code:
+        executor:
+          name: rn/linux_js
+        steps:
+          - checkout
+          - persist_to_workspace:
+              paths: .
+              root: .
+    orbs:
+      rn: verypossible-labs/react-native@1.0.0
+    references:
+      attach_workspace:
+        attach_workspace:
+          at: .
+      persist_to_workspace:
+        persist_to_workspace:
+          paths: .
+          root: .
+    version: 2.1
+    workflows:
+      build:
+        jobs:
+          - checkout_code
+          - analyze_js:
+              requires:
+                - checkout_code
+          - rn/ios_build_and_test:
+              build_configuration: Release
+              device: iPhone 11 Pro
+              name: build_ios_release
+              node_version: lts
+              project_path: ios/MyApp.xcworkspace
+              project_type: workspace
+              requires:
+                - analyze_js
+              scheme: MyApp
+          - rn/android_build:
+              build_type: release
+              bundle_type: aab
+              name: build_android_release
+              requires:
+                - analyze_js
+  simple-e2e:
+    jobs:
+      analyze_js:
+        executor: rn/linux_js
+        steps:
+          - attach_workspace:
+              at: .
+          - rn/yarn_install
+          - run:
+              command: yarn lint
+              name: Run eslint
+          - run:
+              command: yarn test
+              name: Run unit tests
+      checkout_code:
+        executor:
+          name: rn/linux_js
+        steps:
+          - checkout
+          - persist_to_workspace:
+              paths: .
+              root: .
+    orbs:
+      rn: verypossible-labs/react-native@1.0.0
+    references:
+      attach_workspace:
+        attach_workspace:
+          at: .
+      persist_to_workspace:
+        persist_to_workspace:
+          paths: .
+          root: .
+    version: 2.1
+    workflows:
+      build:
+        jobs:
+          - checkout_code
+          - analyze_js:
+              requires:
+                - checkout_code
+          - rn/ios_build_and_test:
+              build_configuration: Release
+              device: iPhone 11 Pro
+              name: build_ios_release
+              node_version: lts
+              project_path: ios/MyApp.xcworkspace
+              project_type: workspace
+              requires:
+                - analyze_js
+              scheme: MyApp
+          - rn/android_build:
+              build_type: release
+              bundle_type: aab
+              name: build_android_release
+              requires:
+                - analyze_js
+executors:
+  linux_android:
+    docker:
+      - image: reactnativecommunity/react-native-android
+    environment:
+      - NODE_OPTIONS: <<parameters.node_options>>
+      - _JAVA_OPTIONS: <<parameters.java_options>>
+      - GRADLE_OPTS: <<parameters.gradle_options>>
+    parameters:
+      gradle_options:
+        default: -Xmx2014m -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs="-XX:+UnlockExperimentalVMOptions -XX:+HeapDumpOnOutOfMemoryError"
+        description: Gradle command options. Note that setting this will override the default options so you might need to supply those as well.
+        type: string
+      java_options:
+        default: -Xmx1024m -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap
+        description: Java command options. Note that setting this will override the default options so you might need to supply those as well.
+        type: string
+      node_options:
+        default: --max-old-space-size=8192
+        description: Node command options. Typically used for increasing memory, increases to 8192 by default.
+        type: string
+      resource_class:
+        default: medium
+        description: Changes the resource class of the executor. Requires a support request to enable the resource_class parameter. See https://circleci.com/docs/2.0/configuration-reference/#resource_class
+        type: string
+    resource_class: <<parameters.resource_class>>
+  linux_js:
+    docker:
+      - image: cimg/node:<<parameters.node_version>>
+    environment:
+      - PATH: /opt/yarn/yarn-v1.5.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    parameters:
+      node_version:
+        default: lts
+        description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), or a fully qualified version ("8.4.1").
+        type: string
+      resource_class:
+        default: medium
+        description: Changes the resource class of the executor. Requires a support request to enable the resource_class parameter. See https://circleci.com/docs/2.0/configuration-reference/#resource_class
+        type: string
+    resource_class: <<parameters.resource_class>>
+  macos:
+    macos:
+      xcode: <<parameters.xcode_version>>
+    parameters:
+      resource_class:
+        default: medium
+        description: Changes the resource class of the executor. Requires a support request to enable the resource_class parameter. See https://circleci.com/docs/2.0/configuration-reference/#resource_class
+        type: string
+      xcode_version:
+        default: 12.4.0
+        description: The version of Xcode to use. See here for the list of supported versions https://circleci.com/docs/2.0/testing-ios/#supported-xcode-versions
+        type: string
+    resource_class: <<parameters.resource_class>>
+jobs:
+  android_build:
+    description: Builds the Android app at the given path with the given build types.
+    executor: linux_android
+    parameters:
+      attach_workspace:
+        default: true
+        description: Boolean for whether or not to attach to an existing workspace. Default is true.
+        type: boolean
+      build_type:
+        default: debug
+        description: The build type to build. This is normally either "debug" or "release" but you may have custom build types configured for your app.
+        type: string
+      bundle_type:
+        default: aab
+        description: The type of app to bundle, either 'aab' (Android App Bundles) or 'apk'. Google's recommendation is aab, which is the default.
+        enum:
+          - aab
+          - apk
+        type: enum
+      checkout:
+        default: false
+        description: Boolean for whether or not to checkout as a first step. Default is false.
+        type: boolean
+      on_after_initialize:
+        default: ""
+        description: A custom command to run right after yarn install.
+        type: string
+      persist_to_workspace:
+        default: true
+        description: Should this job persist files to a workspace? Defaults to true
+        type: boolean
+      project_path:
+        default: ./android
+        description: The path to the root of the Android project you want to build, relative to the root of the repository.
+        type: string
+      store_artifacts:
+        default: true
+        description: Store this job store files as job artifacts? Defaults to true
+        type: boolean
+      workspace_root:
+        default: .
+        description: Workspace root path that is either an absolute path or a path relative to the working directory. Defaults to '.' (the working directory).
+        type: string
+    steps:
+      - when:
+          condition: <<parameters.checkout>>
+          steps:
+            - checkout
+      - when:
+          condition: <<parameters.attach_workspace>>
+          steps:
             - attach_workspace:
                 at: <<parameters.workspace_root>>
-            - setup_macos_executor:
-                node_version: <<parameters.node_version>>
-            - yarn_install
-            - when:
-                condition: <<parameters.should_on_after_initialize>>
-                steps:
-                    - run:
-                        command: <<parameters.on_after_initialize>>
-                        name: on_after_initialize
-            - when:
-                condition: <<parameters.start_metro>>
-                steps:
-                    - metro_start
-            - android_emulator_start:
-                build_tools_version: <<parameters.build_tools_version>>
-                device_name: <<parameters.device_name>>
-                logcat_grep: <<parameters.logcat_grep>>
-                platform_version: <<parameters.platform_version>>
-            - detox_test:
-                configuration: <<parameters.detox_configuration>>
-                loglevel: <<parameters.detox_loglevel>>
-            - when:
-                condition: <<parameters.store_artifact_path>>
-                steps:
-                    - store_artifacts:
-                        path: <<parameters.store_artifact_path>>
-    ios_build:
-        description: Builds the iOS app at the given path with the given build scheme
-        executor: macos
-        parameters:
-            attach_workspace:
-                default: true
-                description: Boolean for whether or not to attach to an existing workspace. Default is true.
-                type: boolean
-            build_configuration:
-                default: Debug
-                description: The build configuration to use. This is normally either "Debug" or "Release" but you may have custom build configuration configured for your app.
-                type: string
-            checkout:
-                default: false
-                description: Boolean for whether or not to checkout as a first step. Default is false.
-                type: boolean
-            derived_data_path:
-                default: ios/build
-                description: The path to the directory to place the derived data, relative to the root of the repository.
-                type: string
-            device:
-                default: iPhone 12
-                description: The type of device you want to build for.
-                type: string
-            node_version:
-                default: "12"
-                description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), or a fully qualified version ("8.4.1").
-                type: string
-            on_after_initialize:
-                default: ""
-                description: A custom command to run right after yarn install.
-                type: string
-            project_path:
-                description: The path to the Xcode project (*.xcodeproj) or the Xcode workspace (*.xcworkspace) that you want to build, relative to the root of the repository.
-                type: string
-            project_type:
-                default: project
-                description: If the iOS app is built using a project file (*.xcodeproj) or a workspace.
-                enum:
-                    - project
-                    - workspace
-                type: enum
-            scheme:
-                description: The scheme to use.
-                type: string
-            start_metro:
-                default: false
-                description: If we should start the Metro packager in the background for this job.
-                type: boolean
-            workspace_root:
-                default: .
-                description: Workspace root path that is either an absolute path or a path relative to the working directory. Defaults to '.' (the working directory).
-                type: string
-        steps:
-            - when:
-                condition: <<parameters.checkout>>
-                steps:
-                    - checkout
-            - when:
-                condition: <<parameters.attach_workspace>>
-                steps:
-                    - attach_workspace:
-                        at: <<parameters.workspace_root>>
-            - setup_macos_executor:
-                node_version: <<parameters.node_version>>
-            - yarn_install
-            - install_pods
-            - when:
-                condition: <<parameters.on_after_initialize>>
-                steps:
-                    - run:
-                        command: <<parameters.on_after_initialize>>
-                        name: on_after_initialize
-            - when:
-                condition: <<parameters.start_metro>>
-                steps:
-                    - metro_start
-            - ios_build:
-                build_configuration: <<parameters.build_configuration>>
-                derived_data_path: <<parameters.derived_data_path>>
-                device: <<parameters.device>>
-                project_path: <<parameters.project_path>>
-                project_type: <<parameters.project_type>>
-                scheme: <<parameters.scheme>>
-    ios_build_and_test:
-        description: Builds the iOS app at the given path with the given build scheme and configuration and then runs the tests with the Detox configuration given.
-        executor: macos
-        parameters:
-            attach_workspace:
-                default: true
-                description: Boolean for whether or not to attach to an existing workspace. Default is true.
-                type: boolean
-            build_configuration:
-                default: Debug
-                description: The build configuration to use. This is normally either "Debug" or "Release" but you may have custom build configuration configured for your app.
-                type: string
-            checkout:
-                default: false
-                description: Boolean for whether or not to checkout as a first step. Default is false.
-                type: boolean
-            derived_data_path:
-                default: ios/build
-                description: The path to the directory to place the derived data, relative to the root of the repository.
-                type: string
-            detox_configuration:
-                default: ios.sim.release
-                description: The Detox configuration to test.
-                type: string
-            detox_loglevel:
-                default: warn
-                description: The Detox logging level to use. Must be one of "fatal", "error", "warn", "info", "verbose", or "trace".
-                enum:
-                    - fatal
-                    - error
-                    - warn
-                    - info
-                    - verbose
-                    - trace
-                type: enum
-            device:
-                default: iPhone X
-                description: The type of device you want to build for.
-                type: string
-            node_version:
-                default: "12"
-                description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), or a fully qualified version ("8.4.1").
-                type: string
-            on_after_initialize:
-                default: ""
-                description: A custom command to run right after yarn install.
-                type: string
-            pod_install_directory:
-                default: ""
-                description: The location of the "ios" directory for `pod install`
-                type: string
-            project_path:
-                description: The path to the Xcode project (*.xcodeproj) or the Xcode workspace (*.xcworkspace) that you want to build, relative to the root of the repository.
-                type: string
-            project_type:
-                default: project
-                description: If the iOS app is built using a project file (*.xcodeproj) or a workspace.
-                enum:
-                    - project
-                    - workspace
-                type: enum
-            scheme:
-                description: The scheme to use.
-                type: string
-            start_metro:
-                default: false
-                description: If we should start the Metro packager in the background for this job.
-                type: boolean
-            store_artifact_path:
-                default: ""
-                description: Stores detox artifacts at CircleCI
-                type: string
-            workspace_root:
-                default: .
-                description: Workspace root path that is either an absolute path or a path relative to the working directory. Defaults to '.' (the working directory).
-                type: string
-        steps:
-            - when:
-                condition: <<parameters.checkout>>
-                steps:
-                    - checkout
-            - when:
-                condition: <<parameters.attach_workspace>>
-                steps:
-                    - attach_workspace:
-                        at: <<parameters.workspace_root>>
-            - setup_macos_executor:
-                node_version: <<parameters.node_version>>
-            - ios_simulator_start:
-                device: <<parameters.device>>
-            - yarn_install
-            - when:
-                condition: <<parameters.on_after_initialize>>
-                steps:
-                    - run:
-                        command: <<parameters.on_after_initialize>>
-                        name: on_after_initialize
-            - when:
-                condition: <<parameters.start_metro>>
-                steps:
-                    - metro_start
-            - when:
-                condition: <<parameters.pod_install_directory>>
-                steps:
-                    - pod_install:
-                        pod_install_directory: <<parameters.pod_install_directory>>
-            - ios_build:
-                build_configuration: <<parameters.build_configuration>>
-                derived_data_path: <<parameters.derived_data_path>>
-                device: <<parameters.device>>
-                project_path: <<parameters.project_path>>
-                project_type: <<parameters.project_type>>
-                scheme: <<parameters.scheme>>
-            - detox_test:
-                configuration: <<parameters.detox_configuration>>
-                loglevel: <<parameters.detox_loglevel>>
-            - when:
-                condition: <<parameters.store_artifact_path>>
-                steps:
-                    - store_artifacts:
-                        path: <<parameters.store_artifact_path>>
+      - yarn_install
+      - when:
+          condition: <<parameters.on_after_initialize>>
+          steps:
+            - run:
+                command: <<parameters.on_after_initialize>>
+                name: on_after_initialize
+      - android_build:
+          build_type: <<parameters.build_type>>
+          bundle_type: <<parameters.bundle_type>>
+          project_path: <<parameters.project_path>>
+      - when:
+          condition: <<parameters.persist_to_workspace>>
+          steps:
+            - persist_to_workspace:
+                paths:
+                  - <<parameters.project_path>>/app/build/outputs/<<parameters.bundle_type>>
+                root: .
+      - when:
+          condition: <<parameters.store_artifacts>>
+          steps:
+            - store_artifacts:
+                path: <<parameters.project_path>>/app/build/outputs/<<parameters.bundle_type>>
+  android_test:
+    description: Tests the Android app on the given device, with the given Detox configuration. You should have already built the correct Android APK (including the androidTest APK) and have both persisted to the worksapce.
+    executor: macos
+    parameters:
+      build_tools_version:
+        default: 28.0.3
+        description: The version of the Android build tools to install. Defaults to '28.0.3'.
+        type: string
+      detox_configuration:
+        default: android.emu.release
+        description: The Detox configuration to test. Defaults to 'android.emu.release'.
+        type: string
+      detox_loglevel:
+        default: warn
+        description: The Detox logging level to use. Must be one of "fatal", "error", "warn", "info", "verbose", or "trace".
+        enum:
+          - fatal
+          - error
+          - warn
+          - info
+          - verbose
+          - trace
+        type: enum
+      device_name:
+        default: TestingAVD
+        description: The name of the AVD. You use this name to tell which device to run tests on. Defaults to 'TestingAVD'.
+        type: string
+      logcat_grep:
+        default: com.reactnativecommunity
+        description: ADB logs will be shown in the "Start Android Emulator" commands, but we filter it using grep to avoid noise. You can specify additional strings to grep for. Make sure you escape special characters. Defaults to 'com.reactnativecommunity'.
+        type: string
+      node_version:
+        default: lts
+        description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), or a fully qualified version ("8.4.1").
+        type: string
+      on_after_initialize:
+        default: ""
+        description: A custom command to run right after yarn install.
+        type: string
+      platform_version:
+        default: android-28
+        description: The version of android to run on the emulator. Defaults to 'android-28'.
+        type: string
+      should_on_after_initialize:
+        default: false
+        description: Set this to true if you want to run a custom shell command right after yarn install. Provide the command in on_after_initialize_command
+        type: boolean
+      start_metro:
+        default: false
+        description: If we should start the Metro packager in the background for this job.
+        type: boolean
+      store_artifact_path:
+        default: ""
+        description: Stores detox artifacts at CircleCI
+        type: string
+      workspace_root:
+        default: .
+        description: Workspace root path that is either an absolute path or a path relative to the working directory. Defaults to '.' (the working directory).
+        type: string
+    steps:
+      - attach_workspace:
+          at: <<parameters.workspace_root>>
+      - setup_macos_executor:
+          node_version: <<parameters.node_version>>
+      - yarn_install
+      - when:
+          condition: <<parameters.should_on_after_initialize>>
+          steps:
+            - run:
+                command: <<parameters.on_after_initialize>>
+                name: on_after_initialize
+      - when:
+          condition: <<parameters.start_metro>>
+          steps:
+            - metro_start
+      - android_emulator_start:
+          build_tools_version: <<parameters.build_tools_version>>
+          device_name: <<parameters.device_name>>
+          logcat_grep: <<parameters.logcat_grep>>
+          platform_version: <<parameters.platform_version>>
+      - detox_test:
+          configuration: <<parameters.detox_configuration>>
+          loglevel: <<parameters.detox_loglevel>>
+      - when:
+          condition: <<parameters.store_artifact_path>>
+          steps:
+            - store_artifacts:
+                path: <<parameters.store_artifact_path>>
+  ios_build:
+    description: Builds the iOS app at the given path with the given build scheme
+    executor: macos
+    parameters:
+      attach_workspace:
+        default: true
+        description: Boolean for whether or not to attach to an existing workspace. Default is true.
+        type: boolean
+      build_configuration:
+        default: Debug
+        description: The build configuration to use. This is normally either "Debug" or "Release" but you may have custom build configuration configured for your app.
+        type: string
+      checkout:
+        default: false
+        description: Boolean for whether or not to checkout as a first step. Default is false.
+        type: boolean
+      derived_data_path:
+        default: ios/build
+        description: The path to the directory to place the derived data, relative to the root of the repository.
+        type: string
+      device:
+        default: iPhone 12
+        description: The type of device you want to build for.
+        type: string
+      node_version:
+        default: "12"
+        description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), or a fully qualified version ("8.4.1").
+        type: string
+      on_after_initialize:
+        default: ""
+        description: A custom command to run right after yarn install.
+        type: string
+      project_path:
+        description: The path to the Xcode project (*.xcodeproj) or the Xcode workspace (*.xcworkspace) that you want to build, relative to the root of the repository.
+        type: string
+      project_type:
+        default: project
+        description: If the iOS app is built using a project file (*.xcodeproj) or a workspace.
+        enum:
+          - project
+          - workspace
+        type: enum
+      scheme:
+        description: The scheme to use.
+        type: string
+      start_metro:
+        default: false
+        description: If we should start the Metro packager in the background for this job.
+        type: boolean
+      workspace_root:
+        default: .
+        description: Workspace root path that is either an absolute path or a path relative to the working directory. Defaults to '.' (the working directory).
+        type: string
+    steps:
+      - when:
+          condition: <<parameters.checkout>>
+          steps:
+            - checkout
+      - when:
+          condition: <<parameters.attach_workspace>>
+          steps:
+            - attach_workspace:
+                at: <<parameters.workspace_root>>
+      - setup_macos_executor:
+          node_version: <<parameters.node_version>>
+      - yarn_install
+      - install_pods
+      - when:
+          condition: <<parameters.on_after_initialize>>
+          steps:
+            - run:
+                command: <<parameters.on_after_initialize>>
+                name: on_after_initialize
+      - when:
+          condition: <<parameters.start_metro>>
+          steps:
+            - metro_start
+      - ios_build:
+          build_configuration: <<parameters.build_configuration>>
+          derived_data_path: <<parameters.derived_data_path>>
+          device: <<parameters.device>>
+          project_path: <<parameters.project_path>>
+          project_type: <<parameters.project_type>>
+          scheme: <<parameters.scheme>>
+  ios_build_and_test:
+    description: Builds the iOS app at the given path with the given build scheme and configuration and then runs the tests with the Detox configuration given.
+    executor: macos
+    parameters:
+      attach_workspace:
+        default: true
+        description: Boolean for whether or not to attach to an existing workspace. Default is true.
+        type: boolean
+      build_configuration:
+        default: Debug
+        description: The build configuration to use. This is normally either "Debug" or "Release" but you may have custom build configuration configured for your app.
+        type: string
+      checkout:
+        default: false
+        description: Boolean for whether or not to checkout as a first step. Default is false.
+        type: boolean
+      derived_data_path:
+        default: ios/build
+        description: The path to the directory to place the derived data, relative to the root of the repository.
+        type: string
+      detox_configuration:
+        default: ios.sim.release
+        description: The Detox configuration to test.
+        type: string
+      detox_loglevel:
+        default: warn
+        description: The Detox logging level to use. Must be one of "fatal", "error", "warn", "info", "verbose", or "trace".
+        enum:
+          - fatal
+          - error
+          - warn
+          - info
+          - verbose
+          - trace
+        type: enum
+      device:
+        default: iPhone X
+        description: The type of device you want to build for.
+        type: string
+      node_version:
+        default: "12"
+        description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), or a fully qualified version ("8.4.1").
+        type: string
+      on_after_initialize:
+        default: ""
+        description: A custom command to run right after yarn install.
+        type: string
+      pod_install_directory:
+        default: ""
+        description: The location of the "ios" directory for `pod install`
+        type: string
+      project_path:
+        description: The path to the Xcode project (*.xcodeproj) or the Xcode workspace (*.xcworkspace) that you want to build, relative to the root of the repository.
+        type: string
+      project_type:
+        default: project
+        description: If the iOS app is built using a project file (*.xcodeproj) or a workspace.
+        enum:
+          - project
+          - workspace
+        type: enum
+      scheme:
+        description: The scheme to use.
+        type: string
+      start_metro:
+        default: false
+        description: If we should start the Metro packager in the background for this job.
+        type: boolean
+      store_artifact_path:
+        default: ""
+        description: Stores detox artifacts at CircleCI
+        type: string
+      workspace_root:
+        default: .
+        description: Workspace root path that is either an absolute path or a path relative to the working directory. Defaults to '.' (the working directory).
+        type: string
+    steps:
+      - when:
+          condition: <<parameters.checkout>>
+          steps:
+            - checkout
+      - when:
+          condition: <<parameters.attach_workspace>>
+          steps:
+            - attach_workspace:
+                at: <<parameters.workspace_root>>
+      - setup_macos_executor:
+          node_version: <<parameters.node_version>>
+      - ios_simulator_start:
+          device: <<parameters.device>>
+      - yarn_install
+      - when:
+          condition: <<parameters.on_after_initialize>>
+          steps:
+            - run:
+                command: <<parameters.on_after_initialize>>
+                name: on_after_initialize
+      - when:
+          condition: <<parameters.start_metro>>
+          steps:
+            - metro_start
+      - when:
+          condition: <<parameters.pod_install_directory>>
+          steps:
+            - pod_install:
+                pod_install_directory: <<parameters.pod_install_directory>>
+      - ios_build:
+          build_configuration: <<parameters.build_configuration>>
+          derived_data_path: <<parameters.derived_data_path>>
+          device: <<parameters.device>>
+          project_path: <<parameters.project_path>>
+          project_type: <<parameters.project_type>>
+          scheme: <<parameters.scheme>>
+      - detox_test:
+          configuration: <<parameters.detox_configuration>>
+          loglevel: <<parameters.detox_loglevel>>
+      - when:
+          condition: <<parameters.store_artifact_path>>
+          steps:
+            - store_artifacts:
+                path: <<parameters.store_artifact_path>>
 version: 2.1
-

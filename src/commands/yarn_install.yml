@@ -20,7 +20,7 @@ steps:
 
   - run:
       name: Yarn Install
-      command: yarn install --non-interactive --cache-folder ~/.tmp/yarn
+      command: yarn install --cache-folder ~/.tmp/yarn
 
   - save_cache:
       paths:
