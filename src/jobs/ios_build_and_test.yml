@@ -68,9 +68,9 @@ parameters:
     default: ""
   # For macos executor
   node_version:
-    description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), or a fully qualified version ("8.4.1").
+    description: The version of Node to use. This can be either a major version ("8"), a major and minor ("8.4"), a fully qualified version ("8.4.1"), or the long term stable release ("lts")
     type: string
-    default: "12"
+    default: "lts"
 
 steps:
   - when:

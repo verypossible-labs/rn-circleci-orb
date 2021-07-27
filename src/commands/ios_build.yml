@@ -12,7 +12,7 @@ parameters:
   build_configuration:
     description: The build configuration to use. This is normally either "Debug" or "Release" but you may have custom build configuration configured for your app.
     type: string
-    default: "Debug"
+    default: "Release"
   derived_data_path:
     description: The path to the directory to place the derived data, relative to the root of the repository.
     type: string

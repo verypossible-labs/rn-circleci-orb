@@ -5,15 +5,12 @@ parameters:
     description: The platform to deploy, either "android" or "ios".
     type: enum
     enum: ["android", "ios"]
-    default: "ios"
   lane:
     description: The fastlane lane to run for deployment.
     type: string
-    default: "beta"
   description:
     description: Descriptor of the Fastlane lane running
     type: string
-    default: ""
 
 steps:
   - yarn_install
