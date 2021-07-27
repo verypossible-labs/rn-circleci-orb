@@ -1,3 +1,15 @@
+## [1.1.2](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.1.1...v1.1.2) (2021-07-27)
+
+
+### Bug Fixes
+
+* **attrs:** make default params consistent ([57da35a](https://github.com/verypossible-labs/rn-circleci-orb/commit/57da35a0e5787d27866ee540ce7ad9a9e12254df))
+
+
+### Reverts
+
+* **yarn:** undo yarn non-interactive change ([2c923ef](https://github.com/verypossible-labs/rn-circleci-orb/commit/2c923efe793c9e113939b8e8fdd71508bf0a8e8f))
+
 ## [1.1.1](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.1.0...v1.1.1) (2021-07-14)
 
 
