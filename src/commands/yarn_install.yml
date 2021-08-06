@@ -5,25 +5,50 @@ parameters:
     description: Save and restore the build cache? Defaults to true
     type: boolean
     default: true
+  cache_folder:
+    description: The path to the yarn cache folder.  Defaults to ~/.tmp/yarn
+    type: string
+    default: "~/.tmp/yarn"
+  ignore_scripts:
+    description: Ignore scripts to be run on yarn commands. Defaults to false
+    type: boolean
+    default: false
 
 steps:
-  - run:
-      name: Create cache checksum file
-      command: |
-        mkdir -p ~/.tmp/checksumfiles
-        find . -type f -name 'package.json' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/package.json
-        find . -type f -name 'yarn.lock' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/yarn.lock
+  - when:
+      condition: <<parameters.cache>>
+      steps:
+        - run:
+          name: Create cache checksum file
+          command: |
+            mkdir -p ~/.tmp/checksumfiles
+            find . -type f -name 'package.json' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/package.json
+            find . -type f -name 'yarn.lock' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/yarn.lock
 
-  - restore_cache:
-      keys:
-        - yarn-cache-{{ arch }}-{{ .Branch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ checksum "~/.tmp/checksumfiles/yarn.lock" }}
+        - restore_cache:
+            keys:
+              - yarn-cache-{{ arch }}-{{ .Branch }}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ checksum "~/.tmp/checksumfiles/yarn.lock" }}
 
-  - run:
-      name: Yarn Install
-      command: yarn install --non-interactive --cache-folder ~/.tmp/yarn
+  - when:
+      condition:
+        equal: [true, <<parameters.ignore_scripts>>]
+      steps:
+        - run:
+            name: Yarn Install
+            command: yarn install --ignore-scripts --frozen-lockfile --non-interactive --cache-folder <<parameters.cache_folder>>
+  - when:
+      condition:
+        equal: [false, <<parameters.ignore_scripts>>]
+      steps:
+        - run:
+          name: Yarn Install
+          command: yarn install --frozen-lockfile --non-interactive --cache-folder <<parameters.cache_folder>>
 
-  - save_cache:
-      paths:
-        - ~/.tmp/yarn
-      key: |
-        yarn-cache-{{ arch }}-{{ .Branch}}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ checksum "~/.tmp/checksumfiles/yarn.lock" }}
+  - when:
+      condition: <<parameters.cache>>
+      steps:
+        - save_cache:
+            paths:
+              - <<parameters.cache_folder>>
+            key: |
+              yarn-cache-{{ arch }}-{{ .Branch}}-{{ checksum "~/.tmp/checksumfiles/package.json" }}-{{ checksum "~/.tmp/checksumfiles/yarn.lock" }}
