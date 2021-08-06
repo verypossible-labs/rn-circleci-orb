@@ -29,12 +29,6 @@
     "semantic-release": "^17.4.2",
     "semantic-release-circleci-orb": "^1.1.1"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "yarn lint",
-      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
-    }
-  },
   "config": {
     "commitizen": {
       "path": "cz-conventional-changelog"

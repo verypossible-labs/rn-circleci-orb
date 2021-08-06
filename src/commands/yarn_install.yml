@@ -19,11 +19,11 @@ steps:
       condition: <<parameters.cache>>
       steps:
         - run:
-          name: Create cache checksum file
-          command: |
-            mkdir -p ~/.tmp/checksumfiles
-            find . -type f -name 'package.json' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/package.json
-            find . -type f -name 'yarn.lock' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/yarn.lock
+            name: Create cache checksum file
+            command: |
+              mkdir -p ~/.tmp/checksumfiles
+              find . -type f -name 'package.json' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/package.json
+              find . -type f -name 'yarn.lock' -not -path "*node_modules*" -exec cat {} + >> ~/.tmp/checksumfiles/yarn.lock
 
         - restore_cache:
             keys:
@@ -41,8 +41,8 @@ steps:
         equal: [false, <<parameters.ignore_scripts>>]
       steps:
         - run:
-          name: Yarn Install
-          command: yarn install --frozen-lockfile --non-interactive --cache-folder <<parameters.cache_folder>>
+            name: Yarn Install
+            command: yarn install --frozen-lockfile --non-interactive --cache-folder <<parameters.cache_folder>>
 
   - when:
       condition: <<parameters.cache>>
