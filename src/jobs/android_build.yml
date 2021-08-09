@@ -40,6 +40,18 @@ parameters:
     description: A custom command to run right after yarn install.
     type: string
     default: ""
+  yarn_cache:
+    description: Save and restore the build cache? Defaults to true
+    type: boolean
+    default: true
+  yarn_cache_folder:
+    description: The path to the yarn cache folder.  Defaults to ~/.tmp/yarn
+    type: string
+    default: "~/.tmp/yarn"
+  yarn_ignore_scripts:
+    description: Ignore scripts to be run on yarn commands. Defaults to false
+    type: boolean
+    default: false
 
 executor: linux_android
 
@@ -55,7 +67,10 @@ steps:
         - attach_workspace:
             at: <<parameters.workspace_root>>
 
-  - yarn_install
+  - yarn_install:
+      yarn_cache: <<parameters.yarn_cache>>
+      yarn_cache_folder: <<parameters.yarn_cache_folder>>
+      yarn_ignore_scripts: <<parameters.yarn_ignore_scripts>>
 
   - when:
       condition: <<parameters.on_after_initialize>>

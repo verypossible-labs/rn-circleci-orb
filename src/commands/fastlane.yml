@@ -11,9 +11,24 @@ parameters:
   description:
     description: Descriptor of the Fastlane lane running
     type: string
+  yarn_cache:
+    description: Save and restore the build cache? Defaults to true
+    type: boolean
+    default: true
+  yarn_cache_folder:
+    description: The path to the yarn cache folder.  Defaults to ~/.tmp/yarn
+    type: string
+    default: "~/.tmp/yarn"
+  yarn_ignore_scripts:
+    description: Ignore scripts to be run on yarn commands. Defaults to false
+    type: boolean
+    default: false
 
 steps:
-  - yarn_install
+  - yarn_install:
+      yarn_cache: <<parameters.yarn_cache>>
+      yarn_cache_folder: <<parameters.yarn_cache_folder>>
+      yarn_ignore_scripts: <<parameters.yarn_ignore_scripts>>
 
   - when:
       condition:
