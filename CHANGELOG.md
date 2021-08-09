@@ -1,3 +1,21 @@
+# [1.2.0](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.1.1...v1.2.0) (2021-08-06)
+
+
+### Bug Fixes
+
+* **attrs:** make default params consistent ([57da35a](https://github.com/verypossible-labs/rn-circleci-orb/commit/57da35a0e5787d27866ee540ce7ad9a9e12254df))
+
+
+### Features
+
+* **yarn:** add ignore_scripts and cache parameters to yarn_install command ([6a2294f](https://github.com/verypossible-labs/rn-circleci-orb/commit/6a2294f891bef3c7fbe83ed1c350e5178d91a791))
+* **yarn:** add ignore_scripts and cache parameters to yarn_install command ([931a652](https://github.com/verypossible-labs/rn-circleci-orb/commit/931a652dc07d5507c8245efa5687561fe321e129))
+
+
+### Reverts
+
+* **yarn:** undo yarn non-interactive change ([2c923ef](https://github.com/verypossible-labs/rn-circleci-orb/commit/2c923efe793c9e113939b8e8fdd71508bf0a8e8f))
+
 ## [1.1.1](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.1.0...v1.1.1) (2021-07-14)
 
 
