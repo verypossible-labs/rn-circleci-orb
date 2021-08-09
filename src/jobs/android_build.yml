@@ -68,9 +68,9 @@ steps:
             at: <<parameters.workspace_root>>
 
   - yarn_install:
-      yarn_cache: <<parameters.yarn_cache>>
-      yarn_cache_folder: <<parameters.yarn_cache_folder>>
-      yarn_ignore_scripts: <<parameters.yarn_ignore_scripts>>
+      cache: <<parameters.yarn_cache>>
+      cache_folder: <<parameters.yarn_cache_folder>>
+      ignore_scripts: <<parameters.yarn_ignore_scripts>>
 
   - when:
       condition: <<parameters.on_after_initialize>>
