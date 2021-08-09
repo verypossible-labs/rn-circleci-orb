@@ -1,3 +1,11 @@
+## [1.2.1](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.2.0...v1.2.1) (2021-08-09)
+
+
+### Bug Fixes
+
+* **yarn:** pass yarn parameters up to jobs that use yarn_install ([1d822c0](https://github.com/verypossible-labs/rn-circleci-orb/commit/1d822c090526086767d41e725fff0ccc353e6dff))
+* **yarn:** update yarn_install params in jobs] ([2d0d539](https://github.com/verypossible-labs/rn-circleci-orb/commit/2d0d5391adaa19c5fc6517278d338800e87f7537))
+
 # [1.2.0](https://github.com/verypossible-labs/rn-circleci-orb/compare/v1.1.1...v1.2.0) (2021-08-06)
 
 
